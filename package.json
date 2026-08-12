@@ -1,31 +1,23 @@
 {
   "name": "api-test",
+  "description": "A local desktop tool for testing LLM API endpoints, keys, and models.",
+  "author": "jcta502",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
     "dev": "node server.mjs",
     "desktop": "electron .",
     "dist:win": "electron-builder --win portable",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "dist:fast": "electron-builder --win zip",
+    "dist:all": "electron-builder --win portable zip",
+    "test": "node --test",
+    "check": "node --check lib/probe.mjs && node --check src/main.js && node --check electron/main.mjs"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.4",
     "electron": "^35.7.5",
-    "electron-builder": "^26.0.12",
-    "oxlint": "^1.75.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "electron-builder": "^26.0.12"
   },
   "build": {
     "appId": "com.jcta502.llmapitester",
@@ -39,7 +31,7 @@
       "package.json"
     ],
     "win": {
-      "target": ["portable"],
+      "target": ["portable", "zip"],
       "signAndEditExecutable": false
     },
     "portable": {

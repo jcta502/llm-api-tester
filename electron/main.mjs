@@ -7,7 +7,8 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 let mainWindow
 
 function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1060, height: 860, minWidth: 760, minHeight: 640, autoHideMenuBar: true, backgroundColor: '#10131c', webPreferences: { preload: join(root, 'electron', 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  mainWindow = new BrowserWindow({ width: 1180, height: 840, minWidth: 760, minHeight: 640, show: false, autoHideMenuBar: true, backgroundColor: '#f3f6fb', webPreferences: { preload: join(root, 'electron', 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  mainWindow.once('ready-to-show', () => mainWindow.show())
   mainWindow.loadFile(join(root, 'index.html'))
   mainWindow.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
 }
