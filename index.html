@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,21 +8,20 @@
   </head>
   <body>
     <main class="shell">
-      <section class="intro"><p class="eyebrow">LOCAL API DIAGNOSTICS</p><h1>验证你的 LLM API</h1><p>快速检查 URL、密钥和模型是否真正可用。</p></section>
+      <section class="intro"><p class="eyebrow">LOCAL API DIAGNOSTICS</p><h1>Verify your LLM API</h1><p>Test credentials, discover models, and confirm that a model can respond.</p></section>
       <section class="card settings">
-        <div class="section-head"><div><p class="step">01 · 配置端点</p><h2>OpenAI 兼容接口</h2></div><span class="badge">本地运行</span></div>
+        <div class="section-head"><div><p class="step">01 - Configure provider</p><h2 id="providerTitle">OpenAI-compatible API</h2></div><span class="badge">LOCAL ONLY</span></div>
+        <div class="provider-grid" role="group" aria-label="Provider"><button class="provider active" data-provider="openai" type="button">OpenAI-compatible</button><button class="provider" data-provider="anthropic" type="button">Anthropic</button><button class="provider" data-provider="gemini" type="button">Gemini</button></div>
         <label>API Base URL<input id="baseUrl" type="url" placeholder="https://api.example.com/v1" autocomplete="url" /></label>
-        <label>API Key<div class="key-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><button id="toggleKey" class="icon-button" type="button" aria-label="显示或隐藏 Key">◉</button></div></label>
-        <div class="controls"><label>请求超时<select id="timeout"><option value="10000">10 秒</option><option value="15000" selected>15 秒</option><option value="30000">30 秒</option></select></label><button id="fetchModels" class="primary" type="button">获取模型列表 <span>→</span></button></div>
-        <p class="security">Key 只在本机内存中用于本次请求；不会写入磁盘、报告或日志。</p>
+        <p id="baseUrlHelp" class="field-help">Use the root or /v1 address. The required endpoint is added automatically.</p>
+        <label>API Key<div class="key-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><button id="toggleKey" class="icon-button" type="button" aria-label="Show or hide API key">eye</button></div></label>
+        <div class="controls"><label>Timeout<select id="timeout"><option value="10000">10 seconds</option><option value="15000" selected>15 seconds</option><option value="30000">30 seconds</option></select></label><button id="fetchModels" class="primary" type="button">Fetch models <span>-></span></button></div>
+        <p class="security">The key is used only for this request in local memory. It is never written to disk, logs, or exported reports.</p>
       </section>
-      <section id="statusPanel" class="status empty"><div class="status-icon">◎</div><div><strong>等待检测</strong><p>输入 API 地址与 Key 后，获取可用模型。</p></div></section>
-      <section id="modelsCard" class="card models hidden">
-        <div class="section-head"><div><p class="step">02 · 验证模型</p><h2>从列表中选择一个模型</h2></div><span id="modelCount" class="model-count"></span></div>
-        <div class="model-actions"><label>模型<select id="modelSelect"><option value="">请选择模型</option></select></label><button id="probeModel" class="secondary" type="button" disabled>实际调用测试</button></div>
-        <p class="hint">测试将发送一条短消息（“Reply with exactly: OK”），可能产生极少量 API 用量。</p>
-      </section>
-      <section id="resultCard" class="card result hidden"><div class="section-head"><div><p class="step">03 · 检测结果</p><h2>模型调用结果</h2></div><button id="exportReport" class="text-button" type="button">导出脱敏报告</button></div><div id="resultContent"></div></section>
+      <section id="statusPanel" class="status empty"><div class="status-icon">o</div><div><strong>Ready to test</strong><p>Choose a provider, enter credentials, then fetch its available models.</p></div></section>
+      <section id="modelsCard" class="card models hidden"><div class="section-head"><div><p class="step">02 - Verify model</p><h2>Choose a model to call</h2></div><span id="modelCount" class="model-count"></span></div><div class="model-actions"><label>Model<select id="modelSelect"><option value="">Choose a model</option></select></label><button id="probeModel" class="secondary" type="button" disabled>Test real call</button></div><p class="hint">The test sends a short prompt: "Reply with exactly: OK". It may use a small amount of provider credit.</p></section>
+      <section id="resultCard" class="card result hidden"><div class="section-head"><div><p class="step">03 - Result</p><h2>Model call result</h2></div><button id="exportReport" class="text-button" type="button">Export safe report</button></div><div id="resultContent"></div></section>
+      <section class="card batch"><div class="section-head"><div><p class="step">04 - Batch check</p><h2>Compare multiple endpoints</h2></div><span class="badge">MODEL LIST ONLY</span></div><p class="batch-copy">Paste one configuration per line. The batch runner only requests model lists, so it does not send a generation prompt.</p><label>Configurations<textarea id="batchInput" rows="6" spellcheck="false" placeholder="My OpenAI | openai | https://api.example.com/v1 | sk-...&#10;My Claude | anthropic | https://api.anthropic.com | sk-ant-...&#10;My Gemini | gemini | https://generativelanguage.googleapis.com | AIza..."></textarea></label><div class="batch-actions"><button id="loadCurrent" class="ghost" type="button">Add current config</button><button id="runBatch" class="secondary" type="button">Run batch check</button></div><p id="batchMessage" class="hint">Format: name | provider | base URL | API key. Keys stay in memory and are never included in exports.</p><div id="batchResults" class="batch-results hidden"></div></section>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

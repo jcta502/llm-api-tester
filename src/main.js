@@ -1,49 +1,68 @@
 const $ = (id) => document.getElementById(id)
-const state = { models: [], listResult: null, probeResult: null }
+const providerInfo = {
+  openai: { title: 'OpenAI-compatible API', defaultUrl: '', placeholder: 'https://api.example.com/v1', help: 'Use the root or /v1 address. The required endpoint is added automatically.', keyPlaceholder: 'sk-...' },
+  anthropic: { title: 'Anthropic Messages API', defaultUrl: 'https://api.anthropic.com', placeholder: 'https://api.anthropic.com', help: 'Defaults to the official Anthropic API. The app calls /v1/models and /v1/messages.', keyPlaceholder: 'sk-ant-...' },
+  gemini: { title: 'Google Gemini API', defaultUrl: 'https://generativelanguage.googleapis.com', placeholder: 'https://generativelanguage.googleapis.com', help: 'Defaults to the Gemini API. The app calls v1beta/models and generateContent.', keyPlaceholder: 'AIza...' },
+}
+const state = { provider: 'openai', models: [], listResult: null, probeResult: null }
 const statusPanel = $('statusPanel')
 
-function setStatus(kind, title, message, meta = '') {
-  statusPanel.className = `status ${kind}`
-  statusPanel.innerHTML = `<div class="status-icon">${kind === 'loading' ? '◌' : kind === 'success' ? '✓' : kind === 'error' ? '!' : '◎'}</div><div><strong>${title}</strong><p>${message}</p>${meta ? `<small>${meta}</small>` : ''}</div>`
+function escapeHtml(value) { const el = document.createElement('div'); el.textContent = String(value); return el.innerHTML }
+function currentConfig() { return { provider: state.provider, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), timeoutMs: Number($('timeout').value) } }
+function setStatus(kind, title, message, meta = '') { statusPanel.className = `status ${kind}`; statusPanel.innerHTML = `<div class="status-icon">${kind === 'loading' ? '~' : kind === 'success' ? 'OK' : kind === 'error' ? '!' : 'o'}</div><div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div>` }
+function errorMessage(result) { const mapped = { 400: 'The request configuration was rejected.', 401: 'The API key is invalid or expired.', 403: 'The API key does not have permission.', 404: 'The endpoint was not found. Check the Base URL.', 429: 'The provider is rate-limiting this request or the account has no credit.', 500: 'The upstream service returned an error.', 502: 'The upstream service could not be reached.' }; return mapped[result.status] || result.error || 'The request failed.' }
+async function callApi(action, extra = {}) { const response = await fetch('/api/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...currentConfig(), action, ...extra }) }); return response.json() }
+async function callConfig(config) { const response = await fetch('/api/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...config, action: 'models' }) }); return response.json() }
+function chooseProvider(provider) { state.provider = provider; state.models = []; state.listResult = null; state.probeResult = null; const info = providerInfo[provider]; $('providerTitle').textContent = info.title; $('baseUrl').placeholder = info.placeholder; $('baseUrl').value = info.defaultUrl; $('baseUrlHelp').textContent = info.help; $('apiKey').placeholder = info.keyPlaceholder; $('modelsCard').classList.add('hidden'); $('resultCard').classList.add('hidden'); document.querySelectorAll('.provider').forEach(button => button.classList.toggle('active', button.dataset.provider === provider)); setStatus('empty', 'Ready to test', `Selected ${info.title}. Enter a key, then fetch models.`) }
+function parseBatch() {
+  const validProviders = new Set(Object.keys(providerInfo))
+  return $('batchInput').value.split(/\r?\n/).map((line, index) => ({ line: line.trim(), number: index + 1 })).filter(item => item.line && !item.line.startsWith('#')).map(item => {
+    const [name, provider, baseUrl, apiKey] = item.line.split('|').map(value => value.trim())
+    if (!name || !validProviders.has(provider) || !apiKey || (provider === 'openai' && !baseUrl)) return { ...item, error: 'Invalid format or provider' }
+    return { ...item, name, provider, baseUrl: baseUrl || providerInfo[provider].defaultUrl, apiKey, timeoutMs: Number($('timeout').value) }
+  })
 }
-function getConfig() { return { baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), timeoutMs: Number($('timeout').value) } }
-async function callApi(action, extra = {}) {
-  const response = await fetch('/api/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...getConfig(), action, ...extra }) })
-  return response.json()
+function renderBatch(rows) {
+  $('batchResults').classList.remove('hidden')
+  $('batchResults').innerHTML = `<table><thead><tr><th>Name</th><th>Provider</th><th>Status</th><th>Models</th><th>Latency</th><th>Endpoint / reason</th></tr></thead><tbody>${rows.map(row => {
+    if (row.error) return `<tr><td>${escapeHtml(row.name || `Line ${row.number}`)}</td><td>${escapeHtml(row.provider || '-')}</td><td class="batch-fail">INVALID</td><td>-</td><td>-</td><td>${escapeHtml(row.error)}</td></tr>`
+    const ok = row.result?.ok
+    return `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.provider)}</td><td class="${ok ? 'batch-ok' : 'batch-fail'}">${ok ? 'AVAILABLE' : `HTTP ${row.result?.status || 0}`}</td><td>${ok ? row.result.models.length : '-'}</td><td>${row.result ? `${row.result.elapsedMs} ms` : '-'}</td><td><code>${escapeHtml(ok ? row.result.url : errorMessage(row.result || {}))}</code></td></tr>`
+  }).join('')}</tbody></table>`
 }
-function escape(text) { const div = document.createElement('div'); div.textContent = String(text); return div.innerHTML }
-function formatError(result) {
-  const codes = { 401: 'Key 无效或已过期。', 403: '当前 Key 没有访问权限。', 404: '找不到接口，请检查 Base URL 是否包含正确的 /v1。', 429: '请求被限流或额度不足。', 500: '上游服务发生错误。', 502: '无法连接上游服务。' }
-  return codes[result.status] || result.error || '请求失败。'
-}
+
+document.querySelectorAll('.provider').forEach(button => button.addEventListener('click', () => chooseProvider(button.dataset.provider)))
 $('toggleKey').addEventListener('click', () => { $('apiKey').type = $('apiKey').type === 'password' ? 'text' : 'password' })
 $('fetchModels').addEventListener('click', async () => {
-  const { baseUrl, apiKey } = getConfig()
-  if (!baseUrl || !apiKey) return setStatus('error', '缺少配置', '请填写 API Base URL 与 API Key。')
-  $('fetchModels').disabled = true; $('fetchModels').textContent = '正在获取…'; setStatus('loading', '正在验证连接', '尝试读取此 Key 可访问的模型列表。')
+  const { baseUrl, apiKey, provider } = currentConfig()
+  if (!apiKey || (provider === 'openai' && !baseUrl)) return setStatus('error', 'Missing configuration', 'Enter an API key and the required Base URL.')
+  const button = $('fetchModels'); button.disabled = true; button.textContent = 'Fetching...'; setStatus('loading', 'Checking credentials', 'Requesting the model list from the selected provider.')
   try {
     const result = await callApi('models'); state.listResult = result
-    if (!result.ok) { setStatus('error', '模型列表获取失败', formatError(result), `耗时 ${result.elapsedMs} ms · ${result.url}`); return }
-    state.models = result.models; const select = $('modelSelect'); select.innerHTML = '<option value="">请选择模型</option>' + result.models.map(model => `<option value="${escape(model)}">${escape(model)}</option>`).join('')
-    $('modelCount').textContent = `${result.models.length} 个模型`; $('modelsCard').classList.remove('hidden')
-    setStatus('success', 'Key 与接口可用', `成功获取 ${result.models.length} 个模型。`, `HTTP ${result.status} · ${result.elapsedMs} ms · ${result.url}`)
-  } catch { setStatus('error', '本地服务错误', '无法处理请求，请确认程序仍在运行。') }
-  finally { $('fetchModels').disabled = false; $('fetchModels').innerHTML = '获取模型列表 <span>→</span>' }
+    if (!result.ok) return setStatus('error', 'Could not fetch models', errorMessage(result), `${result.elapsedMs} ms | ${result.url}`)
+    state.models = result.models; $('modelSelect').innerHTML = '<option value="">Choose a model</option>' + result.models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join(''); $('modelCount').textContent = `${result.models.length} models`; $('modelsCard').classList.remove('hidden'); setStatus('success', 'Credentials are accepted', `Fetched ${result.models.length} models from ${providerInfo[result.provider].title}.`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`)
+  } catch { setStatus('error', 'Local service error', 'The local app could not process this request.') }
+  finally { button.disabled = false; button.innerHTML = 'Fetch models <span>-></span>' }
 })
 $('modelSelect').addEventListener('change', () => { $('probeModel').disabled = !$('modelSelect').value })
 $('probeModel').addEventListener('click', async () => {
   const model = $('modelSelect').value; if (!model) return
-  $('probeModel').disabled = true; $('probeModel').textContent = '正在测试…'; setStatus('loading', '正在调用模型', `使用 ${model} 发送最小测试请求。`)
+  const button = $('probeModel'); button.disabled = true; button.textContent = 'Testing...'; setStatus('loading', 'Calling the model', `Sending a minimal request to ${model}.`)
   try {
     const result = await callApi('chat', { model }); state.probeResult = result; $('resultCard').classList.remove('hidden')
-    if (!result.ok) { setStatus('error', '模型调用失败', formatError(result), `耗时 ${result.elapsedMs} ms · ${result.url}`); $('resultContent').innerHTML = `<div class="error-detail"><strong>${escape(result.error)}</strong><pre>${escape(JSON.stringify(result.details || result, null, 2))}</pre></div>`; return }
-    setStatus('success', '模型实际可用', `${result.model} 已成功响应。`, `HTTP ${result.status} · ${result.elapsedMs} ms · ${result.url}`)
-    const usage = result.usage ? Object.entries(result.usage).filter(([, v]) => typeof v === 'number').map(([k, v]) => `<span><b>${escape(k)}</b>${escape(v)}</span>`).join('') : '<span>接口未返回 Token 用量</span>'
-    $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">实际返回模型</p><code>${escape(result.model)}</code></div><div><p class="label">响应耗时</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">响应内容</p><pre>${escape(result.content)}</pre></div><div class="usage">${usage}</div>`
-  } catch { setStatus('error', '本地服务错误', '无法处理请求，请确认程序仍在运行。') }
-  finally { $('probeModel').disabled = false; $('probeModel').textContent = '实际调用测试' }
+    if (!result.ok) { setStatus('error', 'Model call failed', errorMessage(result), `${result.elapsedMs} ms | ${result.url}`); $('resultContent').innerHTML = `<div class="error-detail"><strong>${escapeHtml(result.error)}</strong><pre>${escapeHtml(JSON.stringify(result.details || result, null, 2))}</pre></div>`; return }
+    setStatus('success', 'The model is usable', `${result.model} returned a response.`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`)
+    const usage = result.usage ? Object.entries(result.usage).filter(([, value]) => typeof value === 'number').map(([key, value]) => `<span><b>${escapeHtml(key)}</b>${escapeHtml(value)}</span>`).join('') : '<span>The provider did not return token usage.</span>'
+    $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">RETURNED MODEL</p><code>${escapeHtml(result.model)}</code></div><div><p class="label">TOTAL TIME</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">RESPONSE</p><pre>${escapeHtml(result.content)}</pre></div><div class="usage">${usage}</div>`
+  } catch { setStatus('error', 'Local service error', 'The local app could not process this request.') }
+  finally { button.disabled = false; button.textContent = 'Test real call' }
 })
-$('exportReport').addEventListener('click', () => {
-  const report = { generatedAt: new Date().toISOString(), endpoint: $('baseUrl').value.trim(), modelListCheck: state.listResult, modelCheck: state.probeResult, note: 'API Key 已排除。' }
-  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'llm-api-report.json'; a.click(); URL.revokeObjectURL(url)
+$('exportReport').addEventListener('click', () => { const report = { generatedAt: new Date().toISOString(), provider: state.provider, endpoint: $('baseUrl').value.trim(), modelListCheck: state.listResult, modelCheck: state.probeResult, note: 'API keys are excluded from this report.' }; const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'llm-api-report.json'; link.click(); URL.revokeObjectURL(url) })
+$('loadCurrent').addEventListener('click', () => { const config = currentConfig(); if (!config.apiKey || (config.provider === 'openai' && !config.baseUrl)) { $('batchMessage').textContent = 'Enter a valid current configuration before adding it.'; return }; const label = providerInfo[config.provider].title.replace(' API', ''); const line = `${label} | ${config.provider} | ${config.baseUrl || providerInfo[config.provider].defaultUrl} | ${config.apiKey}`; $('batchInput').value = $('batchInput').value.trim() ? `${$('batchInput').value.trim()}\n${line}` : line; $('batchMessage').textContent = 'Current configuration added. API keys remain only in the page memory.' })
+$('runBatch').addEventListener('click', async () => {
+  const rows = parseBatch(); if (!rows.length) { $('batchMessage').textContent = 'Add at least one configuration line.'; return }
+  const button = $('runBatch'); button.disabled = true; button.textContent = 'Running...'; $('batchMessage').textContent = `Checking ${rows.length} configuration(s), one at a time...`; renderBatch(rows)
+  let passed = 0
+  for (const row of rows) { if (row.error) continue; try { row.result = await callConfig(row); if (row.result.ok) passed += 1 } catch { row.result = { ok: false, status: 0, error: 'Local service error', elapsedMs: 0 } }; renderBatch(rows) }
+  $('batchMessage').textContent = `Batch check complete: ${passed} of ${rows.filter(row => !row.error).length} valid configurations returned a model list.`; button.disabled = false; button.textContent = 'Run batch check'
 })
