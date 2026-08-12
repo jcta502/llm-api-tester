@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM API Tester</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="intro"><p class="eyebrow">LOCAL API DIAGNOSTICS</p><h1>验证你的 LLM API</h1><p>快速检查 URL、密钥和模型是否真正可用。</p></section>
+      <section class="card settings">
+        <div class="section-head"><div><p class="step">01 · 配置端点</p><h2>OpenAI 兼容接口</h2></div><span class="badge">本地运行</span></div>
+        <label>API Base URL<input id="baseUrl" type="url" placeholder="https://api.example.com/v1" autocomplete="url" /></label>
+        <label>API Key<div class="key-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><button id="toggleKey" class="icon-button" type="button" aria-label="显示或隐藏 Key">◉</button></div></label>
+        <div class="controls"><label>请求超时<select id="timeout"><option value="10000">10 秒</option><option value="15000" selected>15 秒</option><option value="30000">30 秒</option></select></label><button id="fetchModels" class="primary" type="button">获取模型列表 <span>→</span></button></div>
+        <p class="security">Key 只在本机内存中用于本次请求；不会写入磁盘、报告或日志。</p>
+      </section>
+      <section id="statusPanel" class="status empty"><div class="status-icon">◎</div><div><strong>等待检测</strong><p>输入 API 地址与 Key 后，获取可用模型。</p></div></section>
+      <section id="modelsCard" class="card models hidden">
+        <div class="section-head"><div><p class="step">02 · 验证模型</p><h2>从列表中选择一个模型</h2></div><span id="modelCount" class="model-count"></span></div>
+        <div class="model-actions"><label>模型<select id="modelSelect"><option value="">请选择模型</option></select></label><button id="probeModel" class="secondary" type="button" disabled>实际调用测试</button></div>
+        <p class="hint">测试将发送一条短消息（“Reply with exactly: OK”），可能产生极少量 API 用量。</p>
+      </section>
+      <section id="resultCard" class="card result hidden"><div class="section-head"><div><p class="step">03 · 检测结果</p><h2>模型调用结果</h2></div><button id="exportReport" class="text-button" type="button">导出脱敏报告</button></div><div id="resultContent"></div></section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
