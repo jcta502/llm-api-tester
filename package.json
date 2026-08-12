@@ -3,8 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "node server.mjs",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win portable",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -18,8 +21,29 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
+  },
+  "build": {
+    "appId": "com.jcta502.llmapitester",
+    "productName": "LLM API Tester",
+    "asar": true,
+    "files": [
+      "index.html",
+      "src/**/*",
+      "electron/**/*",
+      "lib/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["portable"],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "LLM-API-Tester-${version}-portable.exe"
+    }
   }
 }
