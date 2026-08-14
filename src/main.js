@@ -1,82 +1,236 @@
-const $ = (id) => document.getElementById(id)
+import { batchReport, batchReportCsv, reportResult } from '../lib/report.mjs'
+
+const $ = id => document.getElementById(id)
+
+const localToken = (() => {
+  try {
+    const params = new URLSearchParams(location.search)
+    const fromUrl = params.get('token')
+    if (fromUrl) {
+      localStorage.setItem('localToken', fromUrl)
+      params.delete('token')
+      const clean = `${location.pathname}${params.toString() ? `?${params}` : ''}`
+      history.replaceState(null, '', clean)
+      return fromUrl
+    }
+    return localStorage.getItem('localToken') || ''
+  } catch { return '' }
+})()
+
+const browserApi = {
+  async request(path, options = {}) {
+    const headers = { 'content-type': 'application/json', ...(options.headers || {}) }
+    if (localToken) headers['x-local-token'] = localToken
+    const response = await fetch(path, { ...options, headers })
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`
+      try { const data = await response.json(); message = data.error || message } catch { /* ignore */ }
+      throw new Error(message)
+    }
+    return response.json()
+  },
+  profiles: {
+    list: () => browserApi.request('/api/profiles').then(data => data.profiles),
+    capabilities: () => browserApi.request('/api/profiles/capabilities'),
+    save: (profile) => browserApi.request('/api/profiles/save', { method: 'POST', body: JSON.stringify(profile) }),
+    remove: (id) => browserApi.request('/api/profiles/remove', { method: 'POST', body: JSON.stringify({ id }) }),
+    probe: (payload) => browserApi.request('/api/profiles/probe', { method: 'POST', body: JSON.stringify(payload) }),
+    run: (payload) => browserApi.request('/api/profiles/run', { method: 'POST', body: JSON.stringify(payload) }),
+    cancel: (jobId) => browserApi.request('/api/profiles/cancel', { method: 'POST', body: JSON.stringify({ jobId }) }),
+    onProgress: (callback) => {
+      let currentJobId = null
+      let eventSource = null
+      const api = {
+        subscribe(jobId) {
+          if (eventSource) eventSource.close()
+          currentJobId = jobId
+          const url = new URL('/api/profiles/progress', location.origin)
+          url.searchParams.set('jobId', jobId)
+          if (localToken) url.searchParams.set('token', localToken)
+          eventSource = new EventSource(url.toString())
+          eventSource.onmessage = event => {
+            try { const payload = JSON.parse(event.data); if (payload.jobId === currentJobId) callback(payload) } catch { /* ignore */ }
+          }
+        },
+        close() { currentJobId = null; if (eventSource) { eventSource.close(); eventSource = null } },
+      }
+      return api
+    },
+  },
+  probe: (payload) => browserApi.request('/api/probe', { method: 'POST', body: JSON.stringify(payload) }),
+  setTheme: (theme) => browserApi.request('/api/app/set-theme', { method: 'POST', body: JSON.stringify({ theme }) }).then(data => data.theme),
+}
+
 const providerInfo = {
   openai: { title: 'OpenAI 兼容接口', defaultUrl: '', placeholder: 'https://api.example.com/v1', help: '填写根地址或包含 /v1 的地址，工具会自动补全接口路径。', keyPlaceholder: 'sk-...' },
   anthropic: { title: 'Anthropic Messages 接口', defaultUrl: 'https://api.anthropic.com', placeholder: 'https://api.anthropic.com', help: '默认使用 Anthropic 官方地址，也支持兼容的自定义网关。', keyPlaceholder: 'sk-ant-...' },
   gemini: { title: 'Google Gemini 接口', defaultUrl: 'https://generativelanguage.googleapis.com', placeholder: 'https://generativelanguage.googleapis.com', help: '默认使用 Gemini 官方地址，也支持兼容的自定义网关。', keyPlaceholder: 'AIza...' },
 }
-const state = { provider: 'openai', models: [], listResult: null, probeResult: null }
-const statusPanel = $('statusPanel')
-
-function escapeHtml(value) { const el = document.createElement('div'); el.textContent = String(value); return el.innerHTML }
-function currentConfig() { return { provider: state.provider, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), timeoutMs: Number($('timeout').value) } }
-function setStatus(kind, title, message, meta = '') { statusPanel.className = `status ${kind}`; statusPanel.innerHTML = `<div class="status-icon">${kind === 'loading' ? '…' : kind === 'success' ? '✓' : kind === 'error' ? '!' : '1'}</div><div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div>` }
-function errorMessage(result) { if (result?.diagnosis?.message) return result.diagnosis.message; const mapped = { 400: '请求配置不正确，请检查填写内容。', 401: 'API Key 无效或已经过期。', 403: '当前 API Key 没有访问权限。', 404: '没有找到接口，请检查 Base URL。', 429: '请求受到限流，或者账户额度不足。', 500: '上游服务发生错误。', 502: '无法连接上游服务。' }; return mapped[result.status] || result.error || '请求失败。' }
-function errorMeta(result) { const hint = result?.diagnosis?.hint || ''; const upstream = result?.diagnosis?.upstream || result?.error || ''; return [hint, upstream, result?.url].filter(Boolean).join(' | ') }
-async function requestProbe(payload) { if (window.llmApi?.isDesktop) return window.llmApi.probe(payload); const response = await fetch('/api/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }); return response.json() }
-async function callApi(action, extra = {}) { return requestProbe({ ...currentConfig(), action, ...extra }) }
-async function callConfig(config) { return requestProbe({ ...config, action: 'models' }) }
-function chooseProvider(provider) { state.provider = provider; state.models = []; state.listResult = null; state.probeResult = null; const info = providerInfo[provider]; $('providerTitle').textContent = info.title; $('baseUrl').placeholder = info.placeholder; $('baseUrl').value = info.defaultUrl; $('baseUrlHelp').textContent = info.help; $('apiKey').placeholder = info.keyPlaceholder; $('modelsCard').classList.add('hidden'); $('resultCard').classList.add('hidden'); document.querySelectorAll('.provider').forEach(button => button.classList.toggle('active', button.dataset.provider === provider)); setStatus('empty', '等待开始检测', `已选择 ${info.title}，填写密钥后获取模型列表。`) }
-function parseBatch() {
-  const validProviders = new Set(Object.keys(providerInfo))
-  return $('batchInput').value.split(/\r?\n/).map((line, index) => ({ line: line.trim(), number: index + 1 })).filter(item => item.line && !item.line.startsWith('#')).map(item => {
-    const [name, provider, baseUrl, apiKey] = item.line.split('|').map(value => value.trim())
-    if (!name || !validProviders.has(provider) || !apiKey || (provider === 'openai' && !baseUrl)) return { ...item, error: '格式错误或 provider 不受支持' }
-    return { ...item, name, provider, baseUrl: baseUrl || providerInfo[provider].defaultUrl, apiKey, timeoutMs: Number($('timeout').value) }
-  })
+const state = {
+  provider: 'openai', models: [], listResult: null, probeResult: null,
+  editingId: null, editingHasKey: false, profiles: [], selectedIds: new Set(),
+  batchRows: [], batchJobId: null, batchTotal: 0, batchCompleted: 0,
 }
-function renderBatch(rows) {
-  $('batchResults').classList.remove('hidden')
-  $('batchResults').innerHTML = `<table><thead><tr><th>名称</th><th>服务商</th><th>状态</th><th>模型数</th><th>延迟</th><th>接口 / 原因</th></tr></thead><tbody>${rows.map(row => {
-    if (row.error) return `<tr><td>${escapeHtml(row.name || `第 ${row.number} 行`)}</td><td>${escapeHtml(row.provider || '-')}</td><td class="batch-fail">格式错误</td><td>-</td><td>-</td><td>${escapeHtml(row.error)}</td></tr>`
-    const ok = row.result?.ok
-    return `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.provider)}</td><td class="${ok ? 'batch-ok' : 'batch-fail'}">${ok ? '可用' : `HTTP ${row.result?.status || 0}`}</td><td>${ok ? row.result.models.length : '-'}</td><td>${row.result ? `${row.result.elapsedMs} ms` : '-'}</td><td><code>${escapeHtml(ok ? row.result.url : errorMessage(row.result || {}))}</code></td></tr>`
-  }).join('')}</tbody></table>`
+const statusPanel = $('statusPanel')
+const isDesktop = Boolean(window.llmApi?.isDesktop)
+if (!isDesktop) window.llmApi = browserApi
+
+function escapeHtml(value) { const el = document.createElement('div'); el.textContent = String(value ?? ''); return el.innerHTML }
+function escapeAttr(value) { return escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;') }
+function currentConfig() { return { id: state.editingId, name: $('profileName').value.trim(), provider: state.provider, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), timeoutMs: Number($('timeout').value) } }
+function setStatus(kind, title, message, meta = '') { statusPanel.className = `status ${kind}`; statusPanel.innerHTML = `<div class="status-icon">${kind === 'loading' ? '…' : kind === 'success' ? '✓' : kind === 'error' ? '!' : '1'}</div><div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div>` }
+function errorMessage(result) { if (result?.diagnosis?.message) return result.diagnosis.message; const mapped = { 400: '请求配置不正确，请检查填写内容。', 401: 'API Key 无效或已经过期。', 403: '当前 API Key 没有访问权限。', 404: '没有找到接口，请检查 Base URL。', 429: '请求受到限流，或者账户额度不足。', 500: '上游服务发生错误。', 502: '无法连接上游服务。' }; return mapped[result?.status] || result?.error || '请求失败。' }
+function errorMeta(result) { return [result?.diagnosis?.hint, result?.diagnosis?.upstream || result?.error, result?.url].filter(Boolean).join(' | ') }
+function setSelectOptions(select, values, placeholder) { select.replaceChildren(new Option(placeholder, '')); for (const value of values) select.add(new Option(value, value)) }
+function providerLabel(provider) { return { openai: 'OpenAI 兼容', anthropic: 'Anthropic', gemini: 'Gemini' }[provider] || provider }
+function saveBlob(content, type, filename) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 0) }
+function cleanForSingleReport() { return { generatedAt: new Date().toISOString(), provider: state.provider, endpoint: $('baseUrl').value.trim(), modelListCheck: reportResult(state.listResult), modelCheck: reportResult(state.probeResult), note: 'API keys and upstream raw payloads are excluded.' } }
+
+async function requestProbe(payload) {
+  if (!payload.apiKey && state.editingId && state.editingHasKey) {
+    const saved = state.profiles.find(item => item.id === state.editingId)
+    const unchanged = saved && saved.provider === payload.provider && saved.baseUrl === payload.baseUrl && saved.timeoutMs === payload.timeoutMs
+    if (!unchanged) return { ok: false, status: 400, error: '配置有未保存的修改。', diagnosis: { code: 'unsaved_profile', message: '请先保存配置修改', hint: '为了防止已保存的密钥被发送到未确认的新地址，修改 URL 或服务商后必须先保存。' } }
+    return window.llmApi.profiles.probe({ id: state.editingId, action: payload.action, model: payload.model })
+  }
+  return window.llmApi.probe(payload)
+}
+async function callApi(action, extra = {}) { return requestProbe({ ...currentConfig(), action, ...extra }) }
+
+function chooseProvider(provider, options = {}) {
+  state.provider = provider; state.models = []; state.listResult = null; state.probeResult = null
+  const info = providerInfo[provider]
+  $('providerTitle').textContent = info.title; $('baseUrl').placeholder = info.placeholder; $('baseUrlHelp').textContent = info.help; $('apiKey').placeholder = info.keyPlaceholder
+  if (!options.keepUrl) $('baseUrl').value = info.defaultUrl
+  $('modelsCard').classList.add('hidden'); $('resultCard').classList.add('hidden')
+  document.querySelectorAll('.provider').forEach(button => button.classList.toggle('active', button.dataset.provider === provider))
+  if (!options.silent) setStatus('empty', '等待开始检测', `已选择 ${info.title}，填写密钥或载入已保存配置后获取模型列表。`)
+}
+
+function resetForm() {
+  state.editingId = null; state.editingHasKey = false
+  $('profileName').value = ''; $('apiKey').value = ''; $('timeout').value = '15000'; $('editBadge').textContent = '新建'; $('keyHelp').textContent = '新配置需要输入密钥；编辑配置时留空会保留原密钥。'
+  chooseProvider('openai')
+}
+
+function loadProfile(id) {
+  const profile = state.profiles.find(item => item.id === id); if (!profile) return
+  state.editingId = profile.id; state.editingHasKey = profile.hasKey
+  $('profileName').value = profile.name; $('baseUrl').value = profile.baseUrl; $('apiKey').value = ''; $('timeout').value = String(profile.timeoutMs); $('editBadge').textContent = '编辑'; $('keyHelp').textContent = profile.hasKey ? '已安全保存密钥。留空会保留原密钥，输入新值会替换。' : '此配置还没有密钥，请输入后重新保存。'
+  chooseProvider(profile.provider, { keepUrl: true, silent: true })
+  setStatus('empty', '已载入保存配置', `${profile.name} 已准备好，可直接获取模型列表。`)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function loadProfiles() {
+  try {
+    state.profiles = await window.llmApi.profiles.list()
+    const validIds = new Set(state.profiles.map(item => item.id))
+    state.selectedIds = new Set([...state.selectedIds].filter(id => validIds.has(id)))
+    renderProfiles()
+  } catch (error) { setStatus('error', '读取配置失败', error.message || '无法读取本机配置库。') }
+}
+
+function renderProfiles() {
+  $('profileCount').textContent = `${state.profiles.length} 个配置`
+  $('selectAllProfiles').disabled = !state.profiles.length
+  if (!state.profiles.length) { $('profileList').innerHTML = `<div class="empty-state">还没有保存配置。先在上方填写并点击“安全保存配置”。</div>`; return }
+  $('profileList').innerHTML = state.profiles.map(profile => `<article class="profile-item${state.editingId === profile.id ? ' active' : ''}" data-id="${escapeAttr(profile.id)}"><label class="profile-check"><input type="checkbox" data-action="select" ${state.selectedIds.has(profile.id) ? 'checked' : ''} aria-label="选择 ${escapeAttr(profile.name)}" /></label><div class="profile-provider">${escapeHtml(providerLabel(profile.provider))}</div><div class="profile-info"><strong>${escapeHtml(profile.name)}</strong><code>${escapeHtml(profile.baseUrl || providerInfo[profile.provider].defaultUrl)}</code></div><div class="profile-key ${profile.hasKey ? 'saved' : 'missing'}">${profile.hasKey ? '密钥已加密' : '缺少密钥'}</div><div class="profile-actions"><button class="text-button" data-action="edit" type="button">编辑</button><button class="text-button danger-text" data-action="delete" type="button">删除</button></div></article>`).join('')
+}
+
+function sortedBatchRows() {
+  const rows = [...state.batchRows]; const sort = $('sortBatch').value
+  if (sort === 'original') return rows.sort((a, b) => a.index - b.index)
+  if (sort === 'status') return rows.sort((a, b) => Number(Boolean(b.result?.ok)) - Number(Boolean(a.result?.ok)) || a.index - b.index)
+  if (sort === 'latency') return rows.sort((a, b) => (a.result?.elapsedMs ?? Infinity) - (b.result?.elapsedMs ?? Infinity) || a.index - b.index)
+  if (sort === 'models') return rows.sort((a, b) => (b.result?.models?.length ?? -1) - (a.result?.models?.length ?? -1) || a.index - b.index)
+  return rows.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.index - b.index)
+}
+
+function renderBatch() {
+  if (!state.batchRows.length) { $('batchResults').classList.add('hidden'); $('batchSummary').innerHTML = ''; return }
+  const rows = sortedBatchRows(); $('batchResults').classList.remove('hidden')
+  $('batchResults').innerHTML = `<table><thead><tr><th>配置</th><th>服务商</th><th>状态</th><th>模型数</th><th>延迟</th><th>接口 / 原因</th></tr></thead><tbody>${rows.map(row => { const result = row.result; const stateLabel = row.state === 'pending' ? '等待中' : row.state === 'running' ? '检测中…' : result?.ok ? '可用' : result?.diagnosis?.code === 'cancelled' ? '已取消' : `失败${result?.status ? ` · ${result.status}` : ''}`; return `<tr><td><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.baseUrl || providerInfo[row.provider].defaultUrl)}</small></td><td>${escapeHtml(providerLabel(row.provider))}</td><td class="${result?.ok ? 'batch-ok' : row.state === 'pending' || row.state === 'running' ? 'batch-wait' : 'batch-fail'}">${escapeHtml(stateLabel)}</td><td>${result?.ok ? result.models.length : '—'}</td><td>${Number.isFinite(result?.elapsedMs) ? `${result.elapsedMs} ms` : '—'}</td><td><code>${escapeHtml(result?.ok ? result.resolvedEndpoint || result.url : result ? errorMessage(result) : '等待开始')}</code></td></tr>` }).join('')}</tbody></table>`
+  const finished = state.batchRows.filter(row => row.result); const passed = finished.filter(row => row.result.ok).length; const failed = finished.filter(row => !row.result.ok && row.result.diagnosis?.code !== 'cancelled').length
+  $('batchSummary').innerHTML = `<span>${state.batchCompleted}/${state.batchTotal || state.batchRows.length} 已完成</span><span class="positive">${passed} 可用</span><span class="negative">${failed} 失败</span>`
+}
+
+function updateBatchProgress() { const ratio = state.batchTotal ? Math.min(state.batchCompleted / state.batchTotal, 1) : 0; $('batchProgress').value = ratio * 100 }
+
+async function runBatch() {
+  const ids = [...state.selectedIds]; if (!ids.length) { $('batchMessage').textContent = '请先从配置库中选择至少一个端点。'; return }
+  state.batchJobId = crypto.randomUUID(); state.batchTotal = ids.length; state.batchCompleted = 0
+  state.batchRows = ids.map((id, index) => { const profile = state.profiles.find(item => item.id === id); return { ...profile, index, state: 'pending', result: null } })
+  $('runBatch').disabled = true; $('cancelBatch').classList.remove('hidden'); $('batchProgress').classList.remove('hidden'); $('batchMessage').textContent = `正在检测 ${ids.length} 个端点，并发上限为 3…`; $('exportBatchJson').disabled = true; $('exportBatchCsv').disabled = true
+  renderBatch(); updateBatchProgress()
+  const progressChannel = window.llmApi.profiles.onProgress(({ jobId, id, result }) => { if (jobId !== state.batchJobId) return; const row = state.batchRows.find(item => item.id === id); if (!row || row.result) return; row.result = result; row.state = result.ok ? 'success' : result.diagnosis?.code === 'cancelled' ? 'cancelled' : 'failed'; state.batchCompleted += 1; updateBatchProgress(); renderBatch() })
+  try {
+    progressChannel?.subscribe?.(state.batchJobId)
+    const result = await window.llmApi.profiles.run({ jobId: state.batchJobId, ids, concurrency: 3 })
+    result.results?.forEach((item, index) => {
+      if (!item || state.batchRows[index]?.result) return
+      state.batchRows[index].result = item
+      state.batchRows[index].state = item.ok ? 'success' : item.diagnosis?.code === 'cancelled' ? 'cancelled' : 'failed'
+      state.batchCompleted += 1
+    })
+    if (result.cancelled) {
+      for (const row of state.batchRows.filter(item => !item.result)) { row.state = 'cancelled'; row.result = { ok: false, status: 0, diagnosis: { code: 'cancelled', message: '检测已取消' } } }
+      state.batchCompleted = state.batchRows.length; $('batchMessage').textContent = `检测已取消，已完成 ${result.completed} 个请求。`
+    } else $('batchMessage').textContent = `批量检测完成：${state.batchRows.filter(row => row.result?.ok).length}/${ids.length} 个端点可用。`
+  } catch (error) { $('batchMessage').textContent = error.message || '批量检测执行失败。' }
+  finally { state.batchJobId = null; progressChannel?.close?.(); $('runBatch').disabled = false; $('cancelBatch').classList.add('hidden'); $('exportBatchJson').disabled = !state.batchRows.some(row => row.result); $('exportBatchCsv').disabled = !state.batchRows.some(row => row.result); updateBatchProgress(); renderBatch() }
+}
+
+function renderProbeResult(result, stream = false) {
+  $('resultCard').classList.remove('hidden')
+  if (!result.ok) { setStatus('error', stream ? '流式测试失败' : '模型调用失败', errorMessage(result), errorMeta(result)); $('resultContent').innerHTML = `<div class="error-detail"><strong>${escapeHtml(result.diagnosis?.message || result.error)}</strong><pre>${escapeHtml(JSON.stringify(reportResult(result), null, 2))}</pre></div>`; return }
+  if (stream) { const ttft = result.ttftMs === null ? '未检测到文本块' : `${result.ttftMs} ms`; setStatus('success', '流式响应可用', `首字延迟 ${ttft}，共收到 ${result.chunks} 个文本块。`, `HTTP ${result.status} | 总耗时 ${result.elapsedMs} ms | ${result.resolvedEndpoint}`); $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">首字延迟 TTFT</p><strong>${escapeHtml(ttft)}</strong></div><div><p class="label">完整响应耗时</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">流式响应内容</p><pre>${escapeHtml(result.content || '接口建立了流连接，但没有返回可识别的文本块。')}</pre></div><div class="usage"><span><b>接口类型</b>${escapeHtml(result.apiStyle)}</span><span><b>文本块</b>${result.chunks}</span></div>`; return }
+  setStatus('success', '模型实际可用', `${result.model} 已成功返回响应。`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`)
+  const usage = result.usage ? Object.entries(result.usage).filter(([, value]) => typeof value === 'number').map(([key, value]) => `<span><b>${escapeHtml(key)}</b>${escapeHtml(value)}</span>`).join('') : '<span>接口未返回 Token 用量</span>'
+  $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">实际返回模型</p><code>${escapeHtml(result.model)}</code></div><div><p class="label">总耗时</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">响应内容</p><pre>${escapeHtml(result.content)}</pre></div><div class="usage">${usage}</div>`
 }
 
 document.querySelectorAll('.provider').forEach(button => button.addEventListener('click', () => chooseProvider(button.dataset.provider)))
 $('toggleKey').addEventListener('click', () => { const showing = $('apiKey').type === 'password'; $('apiKey').type = showing ? 'text' : 'password'; $('toggleKey').textContent = showing ? '隐藏' : '显示' })
+$('newProfile').addEventListener('click', resetForm)
+$('saveProfile').addEventListener('click', async () => {
+  const config = currentConfig(); if (!config.name) return setStatus('error', '缺少配置名称', '请给这项配置填写一个容易识别的名称。'); if (!config.apiKey && !state.editingHasKey) return setStatus('error', '缺少 API Key', '新配置必须输入 API Key 才能安全保存。')
+  const button = $('saveProfile'); button.disabled = true
+  try { const saved = await window.llmApi.profiles.save(config); state.editingId = saved.id; state.editingHasKey = saved.hasKey; $('apiKey').value = ''; $('editBadge').textContent = '编辑'; $('keyHelp').textContent = '密钥已由操作系统加密。留空会保留原密钥。'; await loadProfiles(); setStatus('success', '配置已安全保存', `${saved.name} 已加入配置库。`) } catch (error) { setStatus('error', '保存失败', error.message || '无法安全保存该配置。') } finally { button.disabled = false }
+})
+$('profileList').addEventListener('change', event => { const input = event.target.closest('[data-action="select"]'); if (!input) return; const id = input.closest('.profile-item').dataset.id; if (input.checked) state.selectedIds.add(id); else state.selectedIds.delete(id) })
+$('profileList').addEventListener('click', async event => { const button = event.target.closest('button[data-action]'); if (!button) return; const id = button.closest('.profile-item').dataset.id; if (button.dataset.action === 'edit') return loadProfile(id); if (button.dataset.action === 'delete') { const profile = state.profiles.find(item => item.id === id); if (!confirm(`删除“${profile?.name || '此配置'}”？保存的加密密钥也会一并删除。`)) return; try { await window.llmApi.profiles.remove(id); state.selectedIds.delete(id); if (state.editingId === id) resetForm(); await loadProfiles() } catch (error) { setStatus('error', '删除失败', error.message || '无法删除该配置。') } } })
+$('selectAllProfiles').addEventListener('click', () => { const allSelected = state.profiles.length && state.profiles.every(item => state.selectedIds.has(item.id)); state.selectedIds = allSelected ? new Set() : new Set(state.profiles.map(item => item.id)); renderProfiles() })
 $('fetchModels').addEventListener('click', async () => {
-  const { baseUrl, apiKey, provider } = currentConfig()
-  if (!apiKey || (provider === 'openai' && !baseUrl)) return setStatus('error', '缺少必要配置', '请填写 API Key 和所需的 Base URL。')
-  const button = $('fetchModels'); button.disabled = true; button.textContent = '正在获取…'; setStatus('loading', '正在验证接口', '正在向服务商请求当前密钥可访问的模型列表。')
-  try {
-    const result = await callApi('models'); state.listResult = result
-    if (!result.ok) return setStatus('error', '获取模型失败', errorMessage(result), errorMeta(result))
-    state.models = result.models; $('modelSelect').innerHTML = '<option value="">请选择模型</option>' + result.models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join(''); $('modelCount').textContent = `${result.models.length} 个模型`; $('modelsCard').classList.remove('hidden'); setStatus('success', '接口和密钥可用', `成功获取 ${result.models.length} 个可用模型。`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`)
-  } catch { setStatus('error', '程序处理失败', '应用无法完成本次请求，请稍后重试。') }
-  finally { button.disabled = false; button.innerHTML = '获取模型列表 <span>→</span>' }
+  const { baseUrl, apiKey, provider } = currentConfig(); if ((!apiKey && !(state.editingId && state.editingHasKey)) || (provider === 'openai' && !baseUrl)) return setStatus('error', '缺少必要配置', '请填写 API Key 和所需的 Base URL。')
+  const button = $('fetchModels'); button.disabled = true; button.textContent = '正在获取…'; setStatus('loading', '正在验证接口', '正在请求当前密钥可访问的模型列表。')
+  try { const result = await callApi('models'); state.listResult = result; if (!result.ok) return setStatus('error', '获取模型失败', errorMessage(result), errorMeta(result)); state.models = result.models; setSelectOptions($('modelSelect'), result.models, '请选择模型'); $('modelCount').textContent = `${result.models.length} 个模型`; $('modelsCard').classList.remove('hidden'); setStatus('success', '接口和密钥可用', `成功获取 ${result.models.length} 个可用模型。`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`) } catch (error) { setStatus('error', '程序处理失败', error.message || '应用无法完成本次请求。') } finally { button.disabled = false; button.innerHTML = '获取模型列表 <span>→</span>' }
 })
 $('modelSelect').addEventListener('change', () => { const disabled = !$('modelSelect').value; $('probeModel').disabled = disabled; $('probeStream').disabled = disabled })
-$('probeModel').addEventListener('click', async () => {
-  const model = $('modelSelect').value; if (!model) return
-  const button = $('probeModel'); button.disabled = true; button.textContent = '正在验证…'; setStatus('loading', '正在调用模型', `正在向 ${model} 发送最小测试请求。`)
-  try {
-    const result = await callApi('chat', { model }); state.probeResult = result; $('resultCard').classList.remove('hidden')
-    if (!result.ok) { setStatus('error', '模型调用失败', errorMessage(result), errorMeta(result)); $('resultContent').innerHTML = `<div class="error-detail"><strong>${escapeHtml(result.diagnosis?.message || result.error)}</strong><pre>${escapeHtml(JSON.stringify(result.details || result.diagnosis || result, null, 2))}</pre></div>`; return }
-    setStatus('success', '模型实际可用', `${result.model} 已成功返回响应。`, `HTTP ${result.status} | ${result.elapsedMs} ms | ${result.url}`)
-    const usage = result.usage ? Object.entries(result.usage).filter(([, value]) => typeof value === 'number').map(([key, value]) => `<span><b>${escapeHtml(key)}</b>${escapeHtml(value)}</span>`).join('') : '<span>接口未返回 Token 用量</span>'
-    $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">实际返回模型</p><code>${escapeHtml(result.model)}</code></div><div><p class="label">总耗时</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">响应内容</p><pre>${escapeHtml(result.content)}</pre></div><div class="usage">${usage}</div>`
-  } catch { setStatus('error', '程序处理失败', '应用无法完成本次请求，请稍后重试。') }
-  finally { button.disabled = false; button.textContent = '发起最小调用' }
-})
-$('probeStream').addEventListener('click', async () => {
-  const model = $('modelSelect').value; if (!model) return
-  const button = $('probeStream'); button.disabled = true; button.textContent = '正在测试…'; setStatus('loading', '正在进行流式测试', `正在测量 ${model} 的首字延迟。`)
-  try {
-    const result = await callApi('stream', { model }); state.probeResult = result; $('resultCard').classList.remove('hidden')
-    if (!result.ok) { setStatus('error', '流式测试失败', errorMessage(result), errorMeta(result)); $('resultContent').innerHTML = `<div class="error-detail"><strong>${escapeHtml(result.diagnosis?.message || result.error)}</strong><pre>${escapeHtml(JSON.stringify(result.details || result.diagnosis || result, null, 2))}</pre></div>`; return }
-    const ttft = result.ttftMs === null ? '未检测到文本块' : `${result.ttftMs} ms`
-    setStatus('success', '流式响应可用', `首字延迟 ${ttft}，共收到 ${result.chunks} 个文本块。`, `HTTP ${result.status} | 总耗时 ${result.elapsedMs} ms | ${result.resolvedEndpoint}`)
-    $('resultContent').innerHTML = `<div class="result-grid"><div><p class="label">首字延迟 TTFT</p><strong>${escapeHtml(ttft)}</strong></div><div><p class="label">完整响应耗时</p><strong>${result.elapsedMs} ms</strong></div></div><div class="response"><p class="label">流式响应内容</p><pre>${escapeHtml(result.content || '接口建立了流连接，但没有返回可识别的文本块。')}</pre></div><div class="usage"><span><b>接口类型</b>${escapeHtml(result.apiStyle)}</span><span><b>文本块</b>${result.chunks}</span></div>`
-  } catch { setStatus('error', '程序处理失败', '应用无法完成本次流式测试，请稍后重试。') }
-  finally { button.disabled = false; button.textContent = '流式速度测试' }
-})
-$('exportReport').addEventListener('click', () => { const report = { generatedAt: new Date().toISOString(), provider: state.provider, endpoint: $('baseUrl').value.trim(), modelListCheck: state.listResult, modelCheck: state.probeResult, note: 'API keys are excluded from this report.' }; const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'llm-api-report.json'; link.click(); URL.revokeObjectURL(url) })
-$('loadCurrent').addEventListener('click', () => { const config = currentConfig(); if (!config.apiKey || (config.provider === 'openai' && !config.baseUrl)) { $('batchMessage').textContent = '请先填写完整的当前配置。'; return }; const label = providerInfo[config.provider].title; const line = `${label} | ${config.provider} | ${config.baseUrl || providerInfo[config.provider].defaultUrl} | ${config.apiKey}`; $('batchInput').value = $('batchInput').value.trim() ? `${$('batchInput').value.trim()}\n${line}` : line; $('batchMessage').textContent = '当前配置已加入。密钥仍只保留在页面内存中。' })
-$('runBatch').addEventListener('click', async () => {
-  const rows = parseBatch(); if (!rows.length) { $('batchMessage').textContent = '请至少添加一行配置。'; return }
-  const button = $('runBatch'); button.disabled = true; button.textContent = '正在检测…'; $('batchMessage').textContent = `正在逐一检测 ${rows.length} 个配置…`; renderBatch(rows)
-  let passed = 0
-  for (const row of rows) { if (row.error) continue; try { row.result = await callConfig(row); if (row.result.ok) passed += 1 } catch { row.result = { ok: false, status: 0, error: '程序处理失败', elapsedMs: 0 } }; renderBatch(rows) }
-  $('batchMessage').textContent = `批量检测完成：${rows.filter(row => !row.error).length} 个有效配置中有 ${passed} 个成功返回模型列表。`; button.disabled = false; button.textContent = '开始批量检测'
-})
+$('probeModel').addEventListener('click', async () => { const model = $('modelSelect').value; if (!model) return; const button = $('probeModel'); button.disabled = true; button.textContent = '正在验证…'; setStatus('loading', '正在调用模型', `正在向 ${model} 发送最小测试请求。`); try { const result = await callApi('chat', { model }); state.probeResult = result; renderProbeResult(result) } catch (error) { setStatus('error', '程序处理失败', error.message || '应用无法完成本次请求。') } finally { button.disabled = false; button.textContent = '普通调用测试' } })
+$('probeStream').addEventListener('click', async () => { const model = $('modelSelect').value; if (!model) return; const button = $('probeStream'); button.disabled = true; button.textContent = '正在测试…'; setStatus('loading', '正在进行流式测试', `正在测量 ${model} 的首字延迟。`); try { const result = await callApi('stream', { model }); state.probeResult = result; renderProbeResult(result, true) } catch (error) { setStatus('error', '程序处理失败', error.message || '应用无法完成本次流式测试。') } finally { button.disabled = false; button.textContent = '流式速度测试' } })
+$('exportReport').addEventListener('click', () => saveBlob(JSON.stringify(cleanForSingleReport(), null, 2), 'application/json', 'llm-api-report.json'))
+$('runBatch').addEventListener('click', runBatch)
+$('cancelBatch').addEventListener('click', async () => { if (!state.batchJobId) return; $('cancelBatch').disabled = true; $('batchMessage').textContent = '正在取消尚未完成的检测…'; await window.llmApi.profiles.cancel(state.batchJobId); $('cancelBatch').disabled = false })
+$('sortBatch').addEventListener('change', renderBatch)
+$('exportBatchJson').addEventListener('click', () => saveBlob(JSON.stringify({ generatedAt: new Date().toISOString(), results: batchReport(sortedBatchRows()) }, null, 2), 'application/json', 'llm-api-batch-report.json'))
+$('exportBatchCsv').addEventListener('click', () => saveBlob(batchReportCsv(sortedBatchRows()), 'text/csv;charset=utf-8', 'llm-api-batch-report.csv'))
+$('themeSelect').addEventListener('change', async () => { const theme = $('themeSelect').value; localStorage.setItem('theme', theme); document.documentElement.dataset.theme = theme; await window.llmApi?.setTheme?.(theme) })
+
+const savedTheme = localStorage.getItem('theme') || 'system'; $('themeSelect').value = savedTheme; document.documentElement.dataset.theme = savedTheme; window.llmApi?.setTheme?.(savedTheme)
+window.llmApi.profiles.capabilities().then(capability => {
+  if (!capability.storeEnabled) { $('saveProfile').disabled = true; $('securityText').textContent = '当前为纯浏览器开发模式，不提供配置库；启动桌面应用后即可保存并共享加密配置。' }
+  else if (!capability.secureStorage) { $('saveProfile').disabled = true; $('securityText').textContent = '系统安全存储当前不可用，因此已禁用密钥保存。' }
+}).catch(() => { $('saveProfile').disabled = true; $('securityText').textContent = '无法连接本地服务；请确认桌面应用正在运行。' })
+if (isDesktop) {
+  window.llmApi.localEndpoint?.().then(endpoint => {
+    if (!endpoint?.url) return
+    const button = $('openInBrowser')
+    button.classList.remove('hidden')
+    button.title = `本地地址 http://127.0.0.1:${endpoint.port}（首次请从这里打开以获取访问令牌）`
+    button.addEventListener('click', () => window.llmApi.openInBrowser())
+  }).catch(() => { /* endpoint unavailable */ })
+} else if (!localToken) {
+  setStatus('error', '缺少访问令牌', '请从桌面应用的“在浏览器中打开”入口进入一次，之后即可直接使用收藏栏地址。')
+}
+loadProfiles()

@@ -70,3 +70,14 @@ test('returns a structured authentication diagnosis', async () => {
     assert.equal(result.diagnosis.upstream, 'bad key')
   } finally { await mock.close() }
 })
+
+test('supports cancelling an in-flight probe', async () => {
+  const mock = await mockServer((_req, _res) => {})
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 20)
+  try {
+    const result = await probePayload({ provider: 'openai', baseUrl: mock.url, apiKey: 'secret', action: 'models', timeoutMs: 10000 }, { signal: controller.signal })
+    assert.equal(result.ok, false)
+    assert.equal(result.diagnosis.code, 'cancelled')
+  } finally { await mock.close() }
+})

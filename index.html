@@ -3,24 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LLM API 检测工具</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <title>LLM API Tester</title>
     <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
     <header class="app-header">
-      <div class="brand"><div class="brand-mark">AI</div><div><strong>LLM API 检测工具</strong><span>本地安全检测 · 不保存密钥</span></div></div>
-      <div class="header-badge"><i></i> 本机运行</div>
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div><strong>LLM API Tester</strong><span>多端点管理与可用性检测</span></div>
+      </div>
+      <div class="header-actions">
+        <span class="version-badge">v0.3.0</span>
+        <label class="theme-control"><span>主题</span><select id="themeSelect" aria-label="界面主题"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+        <div class="header-badge"><i></i> 本机运行</div>
+        <button id="openInBrowser" class="ghost compact hidden" type="button">在浏览器中打开</button>
+      </div>
     </header>
 
     <main class="shell">
       <section class="hero">
-        <div><p class="eyebrow">LLM ENDPOINT CHECKER</p><h1>快速确认 API 是否真的可用</h1><p>验证接口地址和密钥、获取模型列表，并对选定模型发起一次最小调用。</p></div>
-        <div class="hero-steps"><span><b>1</b>填写配置</span><span><b>2</b>获取模型</span><span><b>3</b>实际验证</span></div>
+        <div><p class="eyebrow">ENDPOINT WORKBENCH</p><h1>把多个 LLM 接口放在一起检测</h1><p>安全保存常用配置，批量比较可用状态、模型数量和响应延迟。</p></div>
+        <div class="hero-steps"><span><b>1</b>保存配置</span><span><b>2</b>批量检测</span><span><b>3</b>导出结果</span></div>
       </section>
 
       <div class="workspace">
         <section class="card settings">
-          <div class="section-head"><div><p class="step">单项检测</p><h2 id="providerTitle">OpenAI 兼容接口</h2></div><span class="pill">01</span></div>
+          <div class="section-head"><div><p class="step">配置与单项检测</p><h2 id="providerTitle">OpenAI 兼容接口</h2></div><span id="editBadge" class="pill">新建</span></div>
+          <label>配置名称<input id="profileName" maxlength="80" placeholder="例如：生产环境 OpenAI" autocomplete="off" /></label>
           <div class="provider-grid" role="group" aria-label="服务商">
             <button class="provider active" data-provider="openai" type="button">OpenAI 兼容</button>
             <button class="provider" data-provider="anthropic" type="button">Anthropic</button>
@@ -29,23 +39,32 @@
           <label>API Base URL<input id="baseUrl" type="url" placeholder="https://api.example.com/v1" autocomplete="url" /></label>
           <p id="baseUrlHelp" class="field-help">填写根地址或包含 /v1 的地址，工具会自动补全接口路径。</p>
           <label>API Key<div class="key-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><button id="toggleKey" class="icon-button" type="button" aria-label="显示或隐藏密钥">显示</button></div></label>
-          <div class="controls"><label>超时时间<select id="timeout"><option value="10000">10 秒</option><option value="15000" selected>15 秒</option><option value="30000">30 秒</option></select></label><button id="fetchModels" class="primary" type="button">获取模型列表 <span>→</span></button></div>
-          <div class="security"><span>✓</span><p>密钥只在本次请求的内存中使用，不会写入磁盘、日志或导出报告。</p></div>
+          <p id="keyHelp" class="field-help">新配置需要输入密钥；编辑配置时留空会保留原密钥。</p>
+          <div class="controls"><label>超时时间<select id="timeout"><option value="10000">10 秒</option><option value="15000" selected>15 秒</option><option value="30000">30 秒</option><option value="60000">60 秒</option></select></label><button id="fetchModels" class="primary" type="button">获取模型列表 <span>→</span></button></div>
+          <div class="form-actions"><button id="newProfile" class="ghost" type="button">清空 / 新建</button><button id="saveProfile" class="secondary" type="button">安全保存配置</button></div>
+          <div class="security"><span>✓</span><p id="securityText">保存的密钥由操作系统加密，页面和导出报告都无法读取原文。</p></div>
         </section>
 
         <div class="result-column">
-          <section id="statusPanel" class="status empty"><div class="status-icon">1</div><div><strong>等待开始检测</strong><p>选择服务商并填写接口信息，然后获取模型列表。</p></div></section>
+          <section id="statusPanel" class="status empty"><div class="status-icon">1</div><div><strong>等待开始检测</strong><p>填写临时配置，或从下方配置库载入后开始检测。</p></div></section>
           <section id="modelsCard" class="card models hidden"><div class="section-head"><div><p class="step">选择模型</p><h2>验证模型实际调用</h2></div><span id="modelCount" class="model-count"></span></div><label>可用模型<select id="modelSelect"><option value="">请选择模型</option></select></label><div class="probe-actions"><button id="probeModel" class="secondary" type="button" disabled>普通调用测试</button><button id="probeStream" class="stream-button" type="button" disabled>流式速度测试</button></div><p class="hint">流式测试会测量首字延迟（TTFT）和完整响应时间，两种测试都可能产生少量 API 用量。</p></section>
           <section id="resultCard" class="card result hidden"><div class="section-head"><div><p class="step">检测结果</p><h2>模型调用详情</h2></div><button id="exportReport" class="text-button" type="button">导出脱敏报告</button></div><div id="resultContent"></div></section>
         </div>
       </div>
 
+      <section class="card profiles-section">
+        <div class="section-head profile-heading"><div><p class="step">配置库</p><h2>已保存的 API 端点</h2><p class="section-copy">勾选要比较的配置。密钥只在主进程中解密并用于请求。</p></div><div class="section-tools"><button id="selectAllProfiles" class="ghost compact" type="button">全选</button><span id="profileCount" class="model-count">0 个配置</span></div></div>
+        <div id="profileList" class="profile-list"><div class="empty-state">还没有保存配置。先在上方填写并点击“安全保存配置”。</div></div>
+      </section>
+
       <section class="card batch">
-        <div class="section-head"><div><p class="step">批量检测</p><h2>同时对比多个 API 端点</h2></div><span class="safe-badge">仅获取模型列表 · 不产生推理费用</span></div>
-        <p class="batch-copy">每行填写一个配置，检测完成后会对比可用状态、模型数量和响应延迟。</p>
-        <label>批量配置<textarea id="batchInput" rows="6" spellcheck="false" placeholder="名称 | provider | Base URL | API Key&#10;我的 OpenAI | openai | https://api.example.com/v1 | sk-...&#10;我的 Claude | anthropic | https://api.anthropic.com | sk-ant-..."></textarea></label>
-        <div class="batch-actions"><button id="loadCurrent" class="ghost" type="button">加入当前配置</button><button id="runBatch" class="secondary" type="button">开始批量检测</button></div>
-        <p id="batchMessage" class="hint">provider 可填写 openai、anthropic 或 gemini。密钥不会出现在结果或报告中。</p>
+        <div class="section-head batch-heading"><div><p class="step">批量检测与对比</p><h2>一次检查多个端点</h2><p class="section-copy">最多同时检测 3 个配置，仅请求模型列表，不产生模型推理费用。</p></div><span class="safe-badge">并发上限 3 · 可随时取消</span></div>
+        <div class="batch-toolbar">
+          <div class="toolbar-group"><button id="runBatch" class="primary" type="button">检测已选配置</button><button id="cancelBatch" class="danger hidden" type="button">取消检测</button></div>
+          <div class="toolbar-group"><label class="inline-field">结果排序<select id="sortBatch"><option value="original">配置顺序</option><option value="status">可用状态</option><option value="latency">响应速度</option><option value="models">模型数量</option><option value="name">配置名称</option></select></label><button id="exportBatchJson" class="ghost compact" type="button" disabled>导出 JSON</button><button id="exportBatchCsv" class="ghost compact" type="button" disabled>导出 CSV</button></div>
+        </div>
+        <progress id="batchProgress" class="progress hidden" aria-label="批量检测进度" max="100" value="0"></progress>
+        <div class="batch-meta"><p id="batchMessage" class="hint">请先从配置库中选择至少一个端点。</p><div id="batchSummary" class="summary-chips"></div></div>
         <div id="batchResults" class="batch-results hidden"></div>
       </section>
     </main>

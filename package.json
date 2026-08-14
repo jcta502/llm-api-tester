@@ -3,7 +3,7 @@
   "description": "A local desktop tool for testing LLM API endpoints, keys, and models.",
   "author": "jcta502",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -13,7 +13,7 @@
     "dist:fast": "electron-builder --win zip",
     "dist:all": "electron-builder --win portable zip",
     "test": "node --test",
-    "check": "node --check lib/probe.mjs && node --check src/main.js && node --check electron/main.mjs"
+    "check": "node --check lib/probe.mjs && node --check lib/profile-store.mjs && node --check lib/batch-runner.mjs && node --check lib/report.mjs && node --check lib/http-server.mjs && node --check src/main.js && node --check server.mjs && node --check electron/main.mjs && node --check electron/preload.cjs"
   },
   "devDependencies": {
     "electron": "^35.7.5",
@@ -29,8 +29,7 @@
       "electron/**/*",
       "lib/**/*",
       "package.json"
-    ],
-    "win": {
+    ],    "win": {
       "target": ["portable", "zip"],
       "signAndEditExecutable": false
     },
