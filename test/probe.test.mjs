@@ -81,3 +81,24 @@ test('supports cancelling an in-flight probe', async () => {
     assert.equal(result.diagnosis.code, 'cancelled')
   } finally { await mock.close() }
 })
+
+test('sends custom headers to the upstream request', async () => {
+  let seenHeaders = null
+  const mock = await mockServer((req, res) => {
+    seenHeaders = req.headers
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ data: [{ id: 'model' }] }))
+  })
+  try {
+    const result = await probePayload({ provider: 'openai', baseUrl: `${mock.url}/v1`, apiKey: 'secret', action: 'models', headers: { 'X-Title': 'api-test', 'X-Empty': '' } })
+    assert.equal(result.ok, true)
+    assert.equal(seenHeaders['x-title'], 'api-test')
+    assert.equal('x-empty' in seenHeaders, false)
+  } finally { await mock.close() }
+})
+
+test('rejects malformed custom headers instead of sending them', async () => {
+  const result = await probePayload({ provider: 'openai', baseUrl: 'https://example.test/v1', apiKey: 'secret', action: 'models', headers: { 'bad header name': 'x' } })
+  assert.equal(result.ok, false)
+  assert.equal(result.diagnosis.code, 'invalid_url')
+})

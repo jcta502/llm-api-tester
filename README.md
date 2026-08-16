@@ -4,7 +4,16 @@ A local tool for quickly validating LLM API credentials, listing models, and con
 
 ## Features
 
-- Saves multiple endpoint profiles with OS-backed encryption for API keys
+- Saves multiple endpoint profiles with OS-backed encryption for API keys (and custom headers)
+- Groups profiles, duplicates them in one click, and imports/exports key-free profile bundles
+- Keeps a per-profile check history and shows recent health dots on each profile card
+- Optional deep batch checks that perform a minimal real chat call after listing models
+- Retries only the failed endpoints of the last batch run
+- Optional global HTTP(S) proxy for all probe traffic (CONNECT tunnel)
+- Optional per-profile custom request headers for gateways that require them
+- Optional scheduled checks with system notifications on availability changes
+- Passphrase-encrypted backups so keys survive reinstallations or machine moves
+- Checks for new GitHub releases and links to the release page
 - Serves the same UI to the desktop window and to your browser from one running app
 - Runs up to three profile checks concurrently, with live progress and cancellation
 - Sorts batch results by availability, latency, model count, or name
@@ -13,9 +22,9 @@ A local tool for quickly validating LLM API credentials, listing models, and con
 - Supports OpenAI-compatible, Anthropic Messages, and Google Gemini APIs
 - Automatically normalizes root URLs, `/v1`, `/models`, and full completion URLs
 - Falls back between OpenAI Chat Completions and Responses API when appropriate
-- Lists models available to the current API key
+- Lists models available to the current API key, with instant search and one-click copy
 - Sends a minimal test request to a selected model
-- Measures streaming time to first token (TTFT) and full response time
+- Measures streaming TTFT and full response time, with 1/3/5-run averages and characters-per-second throughput
 - Diagnoses DNS, TLS, timeout, authentication, permission, rate-limit, and upstream errors
 - Shows HTTP status, latency, resolved endpoint, returned model, token usage, and error details
 - Exports a JSON report with API keys excluded
@@ -72,7 +81,7 @@ Pushing a version tag such as `v0.3.0` triggers `.github/workflows/release.yml`.
 
 ## Security
 
-In the desktop app, saved API keys are encrypted through Electron `safeStorage` (Windows uses the current user's OS-protected storage) and are decrypted only in the main process for requests. The renderer never receives a saved key. Reports use explicit field whitelists and exclude keys, raw upstream payloads, and response content.
+In the desktop app, saved API keys are encrypted through Electron `safeStorage` (Windows uses the current user's OS-protected storage) and are decrypted only in the main process for requests. The renderer never receives a saved key. Custom request headers are encrypted the same way and are excluded from profile exports. Reports use explicit field whitelists and exclude keys, raw upstream payloads, and response content.
 
 The local web server applies the same rule: the browser receives profile metadata and `hasKey`, never the key itself, and saved-key checks are resolved inside the app process. It also enforces several local-only guards:
 

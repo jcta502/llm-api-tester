@@ -71,3 +71,34 @@ test('changing an endpoint requires the API key to be re-entered', async () => {
     assert.equal((await store.resolve(saved.id)).baseUrl, 'https://trusted.test/v1')
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
+
+test('custom headers are encrypted at rest, preserved on edit, and never listed', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'llm-profile-'))
+  const filePath = join(directory, 'profiles.json')
+  try {
+    const store = new ProfileStore({ filePath, encryption })
+    const saved = await store.save({ name: 'Gateway', provider: 'openai', baseUrl: 'https://gw.test/v1', apiKey: 'secret', headers: { 'X-Title': 'api-test', 'X-Org': '123' } })
+    assert.equal(saved.hasHeaders, true)
+    assert.equal('headers' in saved, false)
+    const listed = await store.list()
+    assert.equal(listed[0].group, '')
+    assert.equal('headers' in listed[0], false)
+    const resolved = await store.resolve(saved.id)
+    assert.deepEqual(resolved.headers, { 'X-Title': 'api-test', 'X-Org': '123' })
+    const disk = await readFile(filePath, 'utf8')
+    assert.equal(disk.includes('api-test'), false)
+
+    await store.save({ id: saved.id, name: 'Gateway', provider: 'openai', baseUrl: 'https://gw.test/v1' })
+    assert.deepEqual((await store.resolve(saved.id)).headers, { 'X-Title': 'api-test', 'X-Org': '123' })
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
+
+test('groups survive save and round-trip through the public contract', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'llm-profile-'))
+  try {
+    const store = new ProfileStore({ filePath: join(directory, 'profiles.json'), encryption })
+    const saved = await store.save({ name: 'Relay', provider: 'openai', baseUrl: 'https://relay.test/v1', apiKey: 'secret', group: '中转' })
+    assert.equal(saved.group, '中转')
+    assert.equal((await store.list())[0].group, '中转')
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
