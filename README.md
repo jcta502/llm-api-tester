@@ -63,6 +63,20 @@ Open <http://127.0.0.1:4173> in a browser. This browser-only mode has no profile
 store, so it can run one-off checks with a manually entered key but cannot save
 configurations. Use the desktop app for the full feature set.
 
+## Development
+
+- `npm test` — unit tests plus a happy-dom UI smoke test that drives the real
+  page (profile list, model fetch, search, deep batch check) against an
+  in-process mock upstream and API server.
+- `npm run lint` — ESLint over `src/`, `lib/`, `electron/`, and tests.
+- `npm run check` — syntax check for every module.
+
+The renderer is split into ES modules under `src/`: `api.js` (browser API
+client), `state.js` (shared state), `dom.js` (rendering helpers), `form.js`
+(single-endpoint checks), `profiles.js` (profile library), `batch.js` (batch
+checks), `settings.js` (theme, proxy, schedule, backup, update badge), wired
+together by `main.js`.
+
 ## Windows desktop builds
 
 ```powershell

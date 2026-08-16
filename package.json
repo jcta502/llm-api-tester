@@ -13,11 +13,16 @@
     "dist:fast": "electron-builder --win zip",
     "dist:all": "electron-builder --win portable zip",
     "test": "node --test",
-    "check": "node --check lib/probe.mjs && node --check lib/profile-store.mjs && node --check lib/batch-runner.mjs && node --check lib/report.mjs && node --check lib/http-server.mjs && node --check lib/history-store.mjs && node --check lib/settings-store.mjs && node --check lib/check-service.mjs && node --check lib/backup.mjs && node --check lib/update-check.mjs && node --check lib/scheduler.mjs && node --check src/main.js && node --check server.mjs && node --check electron/main.mjs && node --check electron/preload.cjs"
+    "lint": "eslint .",
+    "check": "node --check lib/probe.mjs && node --check lib/profile-store.mjs && node --check lib/batch-runner.mjs && node --check lib/report.mjs && node --check lib/http-server.mjs && node --check lib/history-store.mjs && node --check lib/settings-store.mjs && node --check lib/check-service.mjs && node --check lib/backup.mjs && node --check lib/update-check.mjs && node --check lib/scheduler.mjs && node --check src/api.js && node --check src/state.js && node --check src/dom.js && node --check src/form.js && node --check src/profiles.js && node --check src/batch.js && node --check src/settings.js && node --check src/main.js && node --check server.mjs && node --check electron/main.mjs && node --check electron/preload.cjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "electron": "^35.7.5",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0",
+    "happy-dom": "^20.11.2"
   },
   "build": {
     "appId": "com.jcta502.llmapitester",
