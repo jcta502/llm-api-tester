@@ -8,4 +8,5 @@ export const state = {
   provider: 'openai', models: [], listResult: null, probeResult: null, providerUrls: {},
   editingId: null, editingHasKey: false, editingHasHeaders: false, profiles: [], history: {}, selectedIds: new Set(),
   batchRows: [], batchJobId: null, batchTotal: 0, batchCompleted: 0, lastBatchDeep: false,
+  detail: {},
 }

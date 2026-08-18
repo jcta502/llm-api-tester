@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('llmApi', {
     save: (profile) => ipcRenderer.invoke('profiles:save', profile),
     remove: (id) => ipcRenderer.invoke('profiles:remove', id),
     probe: (payload) => ipcRenderer.invoke('profiles:probe', payload),
+    reveal: (id) => ipcRenderer.invoke('profiles:reveal', id),
+    compat: (id) => ipcRenderer.invoke('profiles:compat', id),
     run: (payload) => ipcRenderer.invoke('profiles:run', payload),
     cancel: (jobId) => ipcRenderer.invoke('profiles:cancel', jobId),
     onProgress: (callback) => {

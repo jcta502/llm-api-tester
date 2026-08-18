@@ -102,3 +102,25 @@ test('groups survive save and round-trip through the public contract', async () 
     assert.equal((await store.list())[0].group, '中转')
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
+
+test('reveal returns the decrypted key and headers for re-reading', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'llm-profile-'))
+  try {
+    const store = new ProfileStore({ filePath: join(directory, 'profiles.json'), encryption })
+    const saved = await store.save({ name: 'Reveal', provider: 'openai', baseUrl: 'https://reveal.test/v1', apiKey: 'sk-read-me', headers: { 'X-Title': 'api-test', Authorization: 'Bearer xyz' } })
+    const revealed = await store.reveal(saved.id)
+    assert.equal(revealed.apiKey, 'sk-read-me')
+    assert.equal(revealed.hasKey, true)
+    assert.deepEqual(revealed.headers, { 'X-Title': 'api-test', Authorization: 'Bearer xyz' })
+    assert.equal(revealed.hasHeaders, true)
+    // reveal never leaks the encrypted blob itself
+    assert.equal('encryptedKey' in revealed, false)
+    // a profile saved without a key reveals an empty string rather than throwing
+    await store.save({ id: saved.id, name: 'Reveal', provider: 'openai', baseUrl: 'https://reveal.test/v1', clearKey: true })
+    const cleared = await store.reveal(saved.id)
+    assert.equal(cleared.apiKey, '')
+    assert.equal(cleared.hasKey, false)
+    // revealing an unknown id surfaces a clear error
+    await assert.rejects(() => store.reveal('00000000-0000-4000-8000-000000000000'), /没有找到该配置/)
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, Notification, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeTheme, Notification, safeStorage, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -19,6 +19,11 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_PORT = 4173
 const UPDATE_REPO = 'jcta502/llm-api-tester'
 let mainWindow
+let tray
+// forceQuit lets the "彻底关闭" tray action and OS shutdown bypass the
+// hide-to-tray behavior on the window's close event and actually terminate.
+let forceQuit = false
+let hasShownTrayHint = false
 let profileStore
 let historyStore
 let settingsStore
@@ -48,6 +53,42 @@ function createWindow() {
     return { action: 'deny' }
   })
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
+  // Closing the window hides it to the tray instead of quitting, so the
+  // scheduled checks and local web page keep running in the background.
+  mainWindow.on('close', event => {
+    if (forceQuit) return
+    event.preventDefault()
+    mainWindow.hide()
+    if (!hasShownTrayHint) {
+      hasShownTrayHint = true
+      try { new Notification({ title: 'LLM API Tester', body: '已最小化到托盘，右键托盘图标可彻底关闭或在浏览器中打开。' }).show() } catch { /* 系统不支持通知 */ }
+    }
+  })
+}
+
+function restoreWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function openInBrowser() {
+  if (!localToken) return false
+  shell.openExternal(`http://127.0.0.1:${httpPort}/?token=${localToken}`)
+  return true
+}
+
+function createTray() {
+  const iconPath = join(root, 'electron', 'app.ico')
+  tray = new Tray(iconPath)
+  tray.setToolTip('LLM API Tester')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '打开网页', click: () => openInBrowser() },
+    { type: 'separator' },
+    { label: '彻底关闭', click: () => { forceQuit = true; app.quit() } },
+  ]))
+  tray.on('click', () => restoreWindow())
 }
 
 ipc('probe', async (_event, payload) => rendererProbeResult(await probePayload(payload), payload?.apiKey))
@@ -61,6 +102,8 @@ ipc('profiles:remove', async (_event, id) => {
   return removed
 })
 ipc('profiles:probe', (_event, { id, action, model }) => checkService.checkSingle(id, { action, model }))
+ipc('profiles:reveal', (_event, id) => profileStore.reveal(id))
+ipc('profiles:compat', (_event, id) => checkService.checkCompatibility(id))
 ipc('profiles:run', async (event, { jobId, ids, concurrency = 3, deep = false, model = '' }) => {
   if (typeof jobId !== 'string' || jobId.length > 100 || batchJobs.has(jobId)) throw new Error('批量任务标识无效。')
   if (!Array.isArray(ids) || !ids.length || ids.length > 100 || ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new Error('请选择 1 至 100 个不重复的有效配置。')
@@ -140,11 +183,7 @@ async function ipcBackupImport({ blob, passphrase } = {}) {
 ipc('backup:export', (_event, { passphrase } = {}) => ipcBackupExport(passphrase))
 ipc('backup:import', (_event, payload) => ipcBackupImport(payload))
 
-ipc('app:open-in-browser', () => {
-  if (!localToken) return false
-  shell.openExternal(`http://127.0.0.1:${httpPort}/?token=${localToken}`)
-  return true
-})
+ipc('app:open-in-browser', () => openInBrowser())
 
 async function ensureLocalToken() {
   const tokenFile = join(app.getPath('userData'), 'local-token.txt')
@@ -200,8 +239,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => {
     if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    restoreWindow()
   })
 
   app.whenReady().then(async () => {
@@ -216,11 +254,13 @@ if (!app.requestSingleInstanceLock()) {
     await scheduler.restart().catch(() => {})
     updateChecker.check().catch(() => {})
     try { await startHttpServer() } catch (error) { console.error('本地 HTTP 服务启动失败:', error?.message || error) }
+    createTray()
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 }
 
 app.on('before-quit', () => {
+  forceQuit = true
   for (const controller of batchJobs.values()) controller.abort()
   httpServer?.batchJobs?.forEach(controller => controller.abort())
   try { httpServer?.close() } catch { /* closing */ }
