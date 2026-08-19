@@ -205,6 +205,12 @@ $('profileList').addEventListener('change', event => { const input = event.targe
 
 $('profileList').addEventListener('click', async event => { const button = event.target.closest('button[data-action]'); if (!button) return; const id = button.closest('.profile-item').dataset.id; const action = button.dataset.action; if (action === 'edit') { delete state.detail[id]; return loadProfile(id); } if (action === 'duplicate') return loadProfile(id, { duplicate: true }); if (action === 'reveal-key' || action === 'models' || action === 'compat') { const type = action === 'reveal-key' ? 'key' : action === 'models' ? 'models' : 'compat'; return toggleDetail(id, type); } if (action === 'copy-key') return copyDetailText(id, 'key'); if (action === 'copy-models') return copyDetailText(id, 'models'); if (action === 'copy-compat') return copyCompat(id); if (action === 'delete') { const profile = state.profiles.find(item => item.id === id); if (!confirm(`删除“${profile?.name || '此配置'}”？保存的加密密钥也会一并删除。`)) return; try { await window.llmApi.profiles.remove(id); state.selectedIds.delete(id); delete state.detail[id]; if (state.editingId === id) resetForm(); await loadProfiles() } catch (error) { setStatus('error', '删除失败', error.message || '无法删除该配置。') } } })
 
+$('profileList').addEventListener('click', event => {
+  if (event.target.closest('button, input, a, label, .profile-detail, .profile-actions')) return
+  const item = event.target.closest('.profile-item'); if (!item) return
+  toggleDetail(item.dataset.id, 'models')
+})
+
 $('selectAllProfiles').addEventListener('click', () => { const allSelected = state.profiles.length && state.profiles.every(item => state.selectedIds.has(item.id)); state.selectedIds = allSelected ? new Set() : new Set(state.profiles.map(item => item.id)); renderProfiles() })
 
 $('exportProfiles').addEventListener('click', () => {

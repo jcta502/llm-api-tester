@@ -133,6 +133,8 @@ pre { margin: 0; color: var(--text); white-space: pre-wrap; word-break: break-wo
 .section-tools { gap: 10px; }
 .profile-list { display: grid; gap: 8px; }
 .profile-item { display: grid; grid-template-columns: 28px 118px minmax(220px, 1fr) 100px 88px; gap: 12px; align-items: center; padding: 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
+.profile-item .profile-check, .profile-item .profile-actions { cursor: default; }
+.profile-item .profile-info { cursor: pointer; }
 .profile-item.active { border-color: var(--blue); box-shadow: inset 3px 0 var(--blue); }
 .profile-check { margin: 0; }
 .profile-check input { width: 16px; height: 16px; margin: 0; accent-color: #2563eb; }

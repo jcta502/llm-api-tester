@@ -16,9 +16,9 @@ function parseHeaderLines(text) {
 }
 
 function currentConfig() {
-  const headers = parseHeaderLines($('customHeaders').value)
-  return { id: state.editingId, name: $('profileName').value.trim(), group: $('profileGroup').value.trim(), provider: state.provider, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), ...(Object.keys(headers).length ? { headers } : {}), timeoutMs: Number($('timeout').value) }
-}
+	  const headers = parseHeaderLines($('customHeaders').value)
+	  return { id: state.editingId, name: $('profileName').value.trim(), group: $('profileGroup').value.trim(), provider: state.provider, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), ...(Object.keys(headers).length ? { headers } : {}), timeoutMs: Number($('timeout').value) }
+	}
 
 function cleanForSingleReport() { return { generatedAt: new Date().toISOString(), provider: state.provider, endpoint: $('baseUrl').value.trim(), modelListCheck: reportResult(state.listResult), modelCheck: reportResult(state.probeResult), note: 'API keys and upstream raw payloads are excluded.' } }
 
@@ -52,26 +52,27 @@ export function chooseProvider(provider, options = {}) {
 }
 
 export function resetForm() {
-  state.editingId = null; state.editingHasKey = false; state.editingHasHeaders = false
+  state.editingId = null; state.editingHasKey = false; state.editingHasHeaders = false; state.editingKeyVisible = false
   $('profileName').value = ''; $('profileGroup').value = ''; $('customHeaders').value = ''; $('headersHelp').textContent = '部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。'
-  $('apiKey').value = ''; $('timeout').value = '15000'; $('editBadge').textContent = '新建'; $('keyHelp').textContent = '新配置需要输入密钥；编辑配置时留空会保留原密钥。'
+  $('apiKey').value = ''; $('apiKey').type = 'password'; $('toggleKey').textContent = '显示'; $('timeout').value = '15000'; $('editBadge').textContent = '新建'; $('keyHelp').textContent = '新配置需要输入密钥；编辑配置时留空会保留原密钥。'
   chooseProvider('openai')
 }
 
 export function loadProfile(id, { duplicate = false } = {}) {
-  const profile = state.profiles.find(item => item.id === id); if (!profile) return
+	  const profile = state.profiles.find(item => item.id === id); if (!profile) return
   state.editingId = duplicate ? null : profile.id; state.editingHasKey = duplicate ? false : profile.hasKey; state.editingHasHeaders = duplicate ? false : profile.hasHeaders
+  state.editingKeyVisible = false
   $('profileName').value = duplicate ? `${profile.name} (副本)` : profile.name
   $('profileGroup').value = profile.group || ''
-  $('baseUrl').value = profile.baseUrl; $('apiKey').value = ''; $('customHeaders').value = ''
+  $('baseUrl').value = profile.baseUrl; $('apiKey').value = ''; $('apiKey').type = 'password'; $('toggleKey').textContent = '显示'; $('customHeaders').value = ''
   $('timeout').value = String(profile.timeoutMs)
   $('editBadge').textContent = duplicate ? '新建' : '编辑'
-  $('keyHelp').textContent = profile.hasKey && !duplicate ? '已安全保存密钥。留空会保留原密钥，输入新值会替换。' : '此配置还没有密钥，请输入后重新保存。'
-  $('headersHelp').textContent = profile.hasHeaders && !duplicate ? '已保存自定义请求头。留空会保留，输入新内容会整体替换。' : '部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。'
-  chooseProvider(profile.provider, { keepUrl: true, silent: true })
-  setStatus('empty', duplicate ? '已复制配置' : '已载入保存配置', duplicate ? `${profile.name} 的参数已填入，请输入新的 API Key 后保存。` : `${profile.name} 已准备好，可直接获取模型列表。`)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
+  $('keyHelp').textContent = profile.hasKey && !duplicate ? '已安全保存密钥，留空会保留原密钥。点击“显示”可解密查看。' : '此配置还没有密钥，请输入后重新保存。'
+	  $('headersHelp').textContent = profile.hasHeaders && !duplicate ? '已保存自定义请求头。留空会保留，输入新内容会整体替换。' : '部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。'
+	  chooseProvider(profile.provider, { keepUrl: true, silent: true })
+	  setStatus('empty', duplicate ? '已复制配置' : '已载入保存配置', duplicate ? `${profile.name} 的参数已填入，请输入新的 API Key 后保存。` : `${profile.name} 已准备好，可直接获取模型列表。`)
+	  window.scrollTo({ top: 0, behavior: 'smooth' })
+	}
 
 function renderModelOptions() {
   const query = $('modelSearch').value.trim().toLowerCase()
@@ -99,7 +100,24 @@ function renderStreamAggregate(runs) {
 }
 
 document.querySelectorAll('.provider').forEach(button => button.addEventListener('click', () => { if (button.dataset.provider !== state.provider) chooseProvider(button.dataset.provider) }))
-$('toggleKey').addEventListener('click', () => { const showing = $('apiKey').type === 'password'; $('apiKey').type = showing ? 'text' : 'password'; $('toggleKey').textContent = showing ? '隐藏' : '显示' })
+$('toggleKey').addEventListener('click', async () => {
+  const input = $('apiKey'); const button = $('toggleKey')
+  if (input.type === 'text') { input.type = 'password'; button.textContent = '显示'; return }
+  if (state.editingId && state.editingHasKey && !input.value) {
+    button.disabled = true; button.textContent = '解密中…'
+    try {
+      const data = await window.llmApi.profiles.reveal(state.editingId)
+      input.value = data?.apiKey || ''
+      input.type = 'text'; state.editingKeyVisible = Boolean(input.value)
+      button.textContent = '隐藏'
+      $('keyHelp').textContent = input.value ? '已解密显示原密钥。留空保存会保留，输入新值会替换。' : '此配置还没有密钥，请输入后保存。'
+    } catch (error) {
+      setStatus('error', '解密失败', error.message || '无法读取本机存储的密钥。')
+    } finally { button.disabled = false; if (input.type === 'password') button.textContent = '显示' }
+    return
+  }
+  input.type = 'text'; button.textContent = '隐藏'
+})
 $('newProfile').addEventListener('click', resetForm)
 
 $('saveProfile').addEventListener('click', async () => {
@@ -108,7 +126,7 @@ $('saveProfile').addEventListener('click', async () => {
   if (!config.name) return setStatus('error', '缺少配置名称', '请给这项配置填写一个容易识别的名称。')
   if (!config.apiKey && !state.editingHasKey) return setStatus('error', '缺少 API Key', '新配置必须输入 API Key 才能安全保存。')
   const button = $('saveProfile'); button.disabled = true
-  try { const saved = await window.llmApi.profiles.save(config); state.editingId = saved.id; state.editingHasKey = saved.hasKey; state.editingHasHeaders = saved.hasHeaders; $('apiKey').value = ''; $('customHeaders').value = ''; $('editBadge').textContent = '编辑'; $('keyHelp').textContent = '密钥已由操作系统加密。留空会保留原密钥。'; $('headersHelp').textContent = saved.hasHeaders ? '已保存自定义请求头。留空会保留，输入新内容会整体替换。' : '部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。'; await loadProfiles(); setStatus('success', '配置已安全保存', `${saved.name} 已加入配置库。`) } catch (error) { setStatus('error', '保存失败', error.message || '无法安全保存该配置。') } finally { button.disabled = false }
+  try { const saved = await window.llmApi.profiles.save(config); state.editingId = saved.id; state.editingHasKey = saved.hasKey; state.editingHasHeaders = saved.hasHeaders; $('apiKey').value = ''; $('apiKey').type = 'password'; $('toggleKey').textContent = '显示'; state.editingKeyVisible = false; $('customHeaders').value = ''; $('editBadge').textContent = '编辑'; $('keyHelp').textContent = '密钥已由操作系统加密。留空会保留原密钥。'; $('headersHelp').textContent = saved.hasHeaders ? '已保存自定义请求头。留空会保留，输入新内容会整体替换。' : '部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。'; await loadProfiles(); setStatus('success', '配置已安全保存', `${saved.name} 已加入配置库。`) } catch (error) { setStatus('error', '保存失败', error.message || '无法安全保存该配置。') } finally { button.disabled = false }
 })
 
 $('fetchModels').addEventListener('click', async () => {
