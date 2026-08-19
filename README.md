@@ -1,121 +1,126 @@
 # LLM API Tester
 
-A local desktop tool for validating LLM API credentials, listing models, checking real model calls, and comparing multiple endpoints side by side. Runs entirely on your own machine; API keys are encrypted by the operating system and never leave the app process.
+一款本地桌面工具，用于验证 LLM API 密钥、列出模型、确认所选模型能真实返回，并支持多端点批量对比。完全在本机运行，API 密钥由操作系统加密，绝不离开应用进程。
 
-[中文文档](README.zh-CN.md)
+[![English](https://img.shields.io/badge/English-点击切换-blue)](README.en.md) [![简体中文](https://img.shields.io/badge/简体中文-当前语言-brightgreen)](README.md)
 
-## Features
+## 功能
 
-### Configuration library
-- Saves multiple endpoint profiles with OS-backed encryption for API keys and custom headers
-- Groups profiles, duplicates them in one click, and imports/exports key-free profile bundles
-- Per-profile check history shown as health dots on each card
-- When editing a saved profile, click **Show** to decrypt and reveal the stored key in plaintext (decrypted only for editing, never written to exports or backups)
-- Click the blank area of a profile bar to expand/collapse its model list inline
-- Checks for new GitHub releases and links to the release page
+### 配置库
+- 保存多个端点配置，API 密钥和自定义请求头经操作系统级加密存储
+- 支持分组、一键复制配置、导入/导出不含密钥的配置包
+- 每个配置卡片显示历史检测健康圆点
+- 编辑已保存配置时点击"显示"按钮，可解密并以明文查看已存密钥（仅用于编辑时解密显示，不会写入导出或备份）
+- 点击配置条目空白处可展开/收起内联模型列表
+- 检测 GitHub 新版本并链接到发布页
 
-### Single-endpoint checks
-- Lists models available to the current key, with instant search and one-click copy
-- Sends a minimal test request to a selected model and shows HTTP status, latency, resolved endpoint, returned model, token usage, and error details
-- Measures streaming TTFT and full response time, with 1/3/5-run averages and characters-per-second throughput
-- Diagnoses DNS, TLS, timeout, authentication, permission, rate-limit, and upstream errors
-- Exports a sanitized JSON report (API keys, raw payloads, and response content excluded)
+### 单端点检测
+- 列出当前密钥可用的模型，支持即时搜索和一键复制
+- 向所选模型发送最小化测试请求，显示 HTTP 状态、延迟、实际请求地址、返回模型、Token 用量和错误详情
+- 测量流式首字延迟（TTFT）和完整响应时间，支持 1/3/5 次取平均及每秒字符吞吐量
+- 诊断 DNS、TLS、超时、鉴权、权限、限流和上游错误
+- 导出脱敏 JSON 报告（不含密钥、原始负载和响应内容）
 
-### Compatibility check
-- One-click deep check per profile: model list, non-streaming chat, and streaming
-- Renders an **agent config card** (Base URL, model name, auth header, streaming / schema-compliance verdicts) ready to copy into an agent's model settings
-- Collapsible raw upstream-response viewer for diagnosing non-compliant gateways
+### 兼容性检测
+- 每个配置一键深度检测：模型列表、非流式对话、流式
+- 渲染**智能体配置卡**（Base URL、模型名、鉴权头、流式 / 响应规范判定），可直接复制填入智能体的模型设置
+- 可折叠的原始上游返回查看器，便于诊断不合规网关
 
-### Batch checks and comparison
-- Up to three concurrent profile checks with live progress and cancellation
-- Optional deep batch checks that perform a minimal real chat call after listing models
-- Retries only the failed endpoints of the last batch run
-- Sorts results by availability, latency, model count, or name
-- Exports batch reports as JSON or UTF-8 CSV
+### 批量检测与对比
+- 最多 3 个配置并发检测，实时进度并可随时取消
+- 可选深度检测：在列出模型后再发一次最小化真实对话调用
+- 仅重试上一轮失败端点
+- 按可用状态、响应速度、模型数量或名称排序
+- 导出批量报告为 JSON 或 UTF-8 CSV
 
-### System and automation
-- Optional global HTTP(S) proxy (CONNECT tunnel) for all probe traffic
-- Optional per-profile custom request headers for gateways that require them
-- Optional scheduled checks with system notifications on availability changes
-- Passphrase-encrypted backups so keys survive reinstallations or machine moves
-- System tray: closing the window hides to tray; right-click for open-in-browser / quit
-- Light, dark, and system-following themes
+### 系统与自动化
+- 可选全局 HTTP(S) 代理（CONNECT 隧道），对全部检测请求生效
+- 可选按配置自定义请求头，适配需要附加头的网关
+- 可选定时检测，可用性变化时系统通知
+- 口令加密备份，密钥可在重装或换机后恢复
+- 系统托盘：关闭窗口缩到托盘；右键可"在浏览器中打开 / 退出"
+- 浅色、深色、跟随系统三种主题
 
-### Supported protocols
-| Protocol | List models | Test call |
+### 支持的协议
+| 协议 | 列出模型 | 测试调用 |
 | --- | --- | --- |
-| OpenAI-compatible | `GET /models` | `POST /chat/completions` |
+| OpenAI 兼容 | `GET /models` | `POST /chat/completions` |
 | Anthropic | `GET /v1/models` | `POST /v1/messages` |
 | Gemini | `GET /v1beta/models` | `POST /v1beta/models/{model}:generateContent` |
 
-The OpenAI-compatible option requires a Base URL such as `https://example.com/v1`. Anthropic and Gemini prefill official API roots but also accept a compatible custom gateway URL. The tool automatically normalizes root URLs, `/v1`, `/models`, and full completion URLs, and falls back between OpenAI Chat Completions and Responses API when appropriate.
+OpenAI 兼容选项需要填写 Base URL，例如 `https://example.com/v1`。Anthropic 和 Gemini 预填官方 API 根地址，也支持兼容的自定义网关。工具会自动规范化根地址、`/v1`、`/models` 和完整补全地址，并在适当时在 OpenAI Chat Completions 与 Responses API 之间回退。
 
-## Download
+## 普通用户
 
-Two Windows builds are published with each release:
+直接从 [Releases](https://github.com/jcta502/llm-api-tester/releases) 下载最新版本运行即可，无需安装，也不需要 Node.js / npm。每个发布版本提供两种 Windows 构建包：
 
-- **ZIP build** (`LLM API Tester-<version>-win.zip`) — extract once and run `LLM API Tester.exe`. Starts fast because the Electron runtime does not unpack itself on every launch. Recommended for normal use.
-- **Portable EXE** (`LLM-API-Tester-<version>-portable.exe`) — a single self-contained file. Convenient to send as one file, but starts more slowly because it unpacks the runtime on each launch.
+- **ZIP 版**（`LLM API Tester-<版本号>-win.zip`）——解压一次后运行 `LLM API Tester.exe` 即可。启动快，因为 Electron 运行时不需要每次启动都自解压。日常使用推荐此版本。
+- **便携 EXE 版**（`LLM-API-Tester-<版本号>-portable.exe`）——单个自包含文件，方便作为单文件发送，但每次启动较慢（需自解压运行时）。
 
-Go to [Releases](https://github.com/jcta502/llm-api-tester/releases), pick the latest version, and download whichever build suits you. Both contain the full feature set and require no installation.
+两种包功能完全相同。启动后会打开自己的窗口，同时在 `http://127.0.0.1:4173` 启动本地 Web 服务器，桌面窗口和浏览器页面共享同一进程、同一配置库和同一套加密密钥。点击应用头部的"在浏览器中打开"按钮即可打开浏览器视图。
 
-## Desktop app and browser view
+## 开发者
 
-Start the desktop app (`npm run desktop`, or the packaged EXE). It opens its own window and also starts a local web server on `http://127.0.0.1:4173`, so the desktop window and the browser page share one process, one profile store, and one set of encrypted keys.
+以下命令仅在你需要修改代码或从源码运行时使用。普通用户不需要 Node.js 或 npm——发布包已打包所有依赖。
 
-To open the browser view, use the **Open in browser** button in the app header. It launches your default browser with the required access token, which the page stores locally. After that first visit you can bookmark the plain `http://127.0.0.1:4173` address; reopening the bookmark keeps working as long as the desktop app is running.
+### 从源码运行桌面应用
 
-Anything saved in one view appears in the other. If the desktop app is not running, the page cannot load and API calls fail; start the app and reload.
+```powershell
+npm install
+npm run desktop
+```
 
-Notes:
+这会从源码启动完整的桌面应用（含配置库、加密密钥等全部功能）。
 
-- The server binds to `127.0.0.1` only, so it is never exposed to your network.
-- If port 4173 is busy the app takes the next free port and logs the new address; update your bookmark in that case.
-- Launching the app twice focuses the existing window instead of starting a second server, which keeps the bookmarked port stable.
-- Closing the window hides the app to the system tray; use the tray menu to fully quit.
-
-## Run locally
+### 纯浏览器开发模式
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:4173> in a browser. This browser-only dev mode has no profile store, so it can run one-off checks with a manually entered key but cannot save configurations. Use the desktop app (`npm run desktop`) for the full feature set.
+在浏览器打开 <http://127.0.0.1:4173>。这是**仅供开发**的模式，**无配置库**：可手动输入密钥做一次性检测，但不能保存配置。仅用于前端开发。
 
-## Build Windows packages
+注意事项：
+
+- 服务器仅绑定 `127.0.0.1`，不会暴露到网络。
+- 若 4173 端口被占用，应用会取下一个空闲端口并打印新地址，请相应更新书签。
+- 重复启动应用会聚焦已有窗口而非启动第二个服务器，保持书签端口稳定。
+- 关闭窗口会缩到系统托盘；如需完全退出请用托盘菜单。
+
+## 构建 Windows 安装包
 
 ```powershell
-# Fast-starting no-install ZIP build
+# 免安装 ZIP 构建包（启动快）
 npm run dist:fast
 
-# Single-file portable build
+# 单文件便携构建包
 npm run dist:win
 
-# Both at once
+# 同时构建两者
 npm run dist:all
 ```
 
-## Automated releases
+## 自动发布
 
-Pushing a version tag such as `v0.4.0` triggers `.github/workflows/release.yml`. GitHub Actions runs the tests, builds both Windows packages (ZIP + portable EXE), uploads workflow artifacts, and attaches them to the matching GitHub Release with auto-generated release notes.
+推送版本号标签（如 `v0.4.0`）会触发 `.github/workflows/release.yml`。GitHub Actions 会运行测试、构建两种 Windows 包（ZIP + 便携 EXE）、上传工作流产物，并将它们附到对应的 GitHub Release，附带自动生成的发布说明。
 
-## Development
+## 开发
 
-- `npm test` — unit tests plus a happy-dom UI smoke test that drives the real page (profile list, model fetch, search, deep batch check) against an in-process mock upstream and API server.
-- `npm run lint` — ESLint over `src/`, `lib/`, `electron/`, and tests.
-- `npm run check` — syntax check for every module.
+- `npm test` —— 单元测试，外加一个 happy-dom UI 冒烟测试，用进程内模拟上游和 API 服务器驱动真实页面（配置列表、模型获取、搜索、深度批量检测）。
+- `npm run lint` —— 对 `src/`、`lib/`、`electron/` 及测试运行 ESLint。
+- `npm run check` —— 对每个模块做语法检查。
 
-The renderer is split into ES modules under `src/`: `api.js` (browser API client), `state.js` (shared state), `dom.js` (rendering helpers), `form.js` (single-endpoint checks), `profiles.js` (profile library), `batch.js` (batch checks), `settings.js` (theme, proxy, schedule, backup, update badge), wired together by `main.js`.
+渲染层按 ES 模块拆分在 `src/` 下：`api.js`（浏览器 API 客户端）、`state.js`（共享状态）、`dom.js`（渲染辅助）、`form.js`（单端点检测）、`profiles.js`（配置库）、`batch.js`（批量检测）、`settings.js`（主题、代理、定时、备份、更新徽标），由 `main.js` 串联。
 
-## Security
+## 安全
 
-In the desktop app, saved API keys are encrypted through Electron `safeStorage` (Windows uses the current user's OS-protected storage) and are decrypted only in the main process for requests. The renderer never receives a saved key, except the explicit **Show** action during editing, which decrypts into the input field only. Custom request headers are encrypted the same way and are excluded from profile exports. Reports use explicit field whitelists and exclude keys, raw upstream payloads, and response content.
+桌面应用中，保存的 API 密钥通过 Electron `safeStorage` 加密（Windows 使用当前用户的操作系统保护存储），仅在主进程中为发起请求而解密。渲染层不会收到已保存的密钥，唯一的例外是编辑时的"显示"动作，且仅解密到输入框内。自定义请求头同样加密，并排除在配置导出之外。报告使用明确的字段白名单，排除密钥、原始负载和响应内容。
 
-The local web server applies the same rule: the browser receives profile metadata and `hasKey`, never the key itself, and saved-key checks are resolved inside the app process. It also enforces several local-only guards:
+本地 Web 服务器遵循同一规则：浏览器收到的是配置元数据和 `hasKey` 标记，永远不是密钥本身；已保存密钥的检测在应用进程内完成。服务器还强制若干本地专属防护：
 
-- Requests with a foreign `Host` header are rejected, which blocks DNS-rebinding attacks from other web pages.
-- API routes require a persistent access token stored under the app's user data directory; page assets load without it so bookmarks work.
-- Only `index.html`, `src/`, `lib/`, and `public/` are served, so project files such as `package.json` and `node_modules` stay unreachable.
+- 拒绝带外来 `Host` 头的请求，阻断来自其他网页的 DNS 重绑定攻击。
+- API 路由需持久访问令牌（存于应用用户数据目录下）；页面资源无需令牌即可加载，保证书签可用。
+- 仅对外服务 `index.html`、`src/`、`lib/`、`public/`，`package.json`、`node_modules` 等项目文件不可达。
 
-Browser development mode (`npm run dev`) has no profile store and never persists API keys.
+浏览器开发模式（`npm run dev`）无配置库，且从不持久化 API 密钥。
