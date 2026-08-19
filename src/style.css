@@ -128,7 +128,7 @@ pre { margin: 0; color: var(--text); white-space: pre-wrap; word-break: break-wo
 .usage span { padding: 5px 7px; color: var(--muted); background: var(--control); border: 1px solid var(--line); border-radius: 6px; font-size: 10px; }
 .usage b { margin-right: 5px; color: var(--text-strong); }
 .error-detail strong { display: block; margin-bottom: 10px; color: var(--red); }
-.profiles-section, .batch { margin-top: 20px; }
+.profiles-section, .batch, .settings-section { margin-top: 20px; }
 .profile-heading { align-items: center; }
 .section-tools { gap: 10px; }
 .profile-list { display: grid; gap: 8px; }
