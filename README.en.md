@@ -50,7 +50,7 @@ A local desktop tool for validating LLM API credentials, listing models, checkin
 
 The OpenAI-compatible option requires a Base URL such as `https://example.com/v1`. Anthropic and Gemini prefill official API roots but also accept a compatible custom gateway URL. The tool automatically normalizes root URLs, `/v1`, `/models`, and full completion URLs, and falls back between OpenAI Chat Completions and Responses API when appropriate.
 
-## For users
+## Download and use
 
 Just download a build from [Releases](https://github.com/jcta502/llm-api-tester/releases), pick the latest version, and run it. No installation and no Node.js / npm needed. Two Windows builds are published with each release:
 
@@ -59,27 +59,11 @@ Just download a build from [Releases](https://github.com/jcta502/llm-api-tester/
 
 Both contain the full feature set. After launch it opens its own window and also starts a local web server on `http://127.0.0.1:4173`, so the desktop window and a browser page share one process, one profile store, and one set of encrypted keys. Use the **Open in browser** button in the app header to open the browser view.
 
-## For developers
+## What to install for the browser view
 
-You only need the commands below if you want to modify the code or run from source. End users do not need Node.js or npm — the release builds already bundle everything.
+If you only want the desktop app, **install nothing** — download a build and double-click to run it.
 
-### Run from source
-
-```powershell
-npm install
-npm run desktop
-```
-
-This launches the full desktop app (with profile store, encrypted keys, etc.) from source.
-
-### Browser-only dev mode
-
-```powershell
-npm install
-npm run dev
-```
-
-Open <http://127.0.0.1:4173> in a browser. This is a developer-only mode with **no profile store**: it can run one-off checks with a manually entered key but cannot save configurations. It is meant only for frontend development.
+If you want the browser view (opening the UI in a browser), it is the same: double-click the build to start the desktop app, then click the **Open in browser** button in the app header. The browser is whatever you already have on your computer (Edge, Chrome, etc.); you do not need to install any additional software or runtime (no Node.js, no npm). The browser view depends on the desktop app running in the background: if the desktop app is not running, the page cannot load and API calls fail — start the app and reload.
 
 Notes:
 
@@ -87,31 +71,6 @@ Notes:
 - If port 4173 is busy the app takes the next free port and logs the new address; update your bookmark in that case.
 - Launching the app twice focuses the existing window instead of starting a second server, which keeps the bookmarked port stable.
 - Closing the window hides the app to the system tray; use the tray menu to fully quit.
-
-## Build Windows packages
-
-```powershell
-# Fast-starting no-install ZIP build
-npm run dist:fast
-
-# Single-file portable build
-npm run dist:win
-
-# Both at once
-npm run dist:all
-```
-
-## Automated releases
-
-Pushing a version tag such as `v0.4.0` triggers `.github/workflows/release.yml`. GitHub Actions runs the tests, builds both Windows packages (ZIP + portable EXE), uploads workflow artifacts, and attaches them to the matching GitHub Release with auto-generated release notes.
-
-## Development
-
-- `npm test` — unit tests plus a happy-dom UI smoke test that drives the real page (profile list, model fetch, search, deep batch check) against an in-process mock upstream and API server.
-- `npm run lint` — ESLint over `src/`, `lib/`, `electron/`, and tests.
-- `npm run check` — syntax check for every module.
-
-The renderer is split into ES modules under `src/`: `api.js` (browser API client), `state.js` (shared state), `dom.js` (rendering helpers), `form.js` (single-endpoint checks), `profiles.js` (profile library), `batch.js` (batch checks), `settings.js` (theme, proxy, schedule, backup, update badge), wired together by `main.js`.
 
 ## Security
 
@@ -122,5 +81,3 @@ The local web server applies the same rule: the browser receives profile metadat
 - Requests with a foreign `Host` header are rejected, which blocks DNS-rebinding attacks from other web pages.
 - API routes require a persistent access token stored under the app's user data directory; page assets load without it so bookmarks work.
 - Only `index.html`, `src/`, `lib/`, and `public/` are served, so project files such as `package.json` and `node_modules` stay unreachable.
-
-Browser development mode (`npm run dev`) has no profile store and never persists API keys.

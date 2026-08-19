@@ -50,7 +50,7 @@
 
 OpenAI 兼容选项需要填写 Base URL，例如 `https://example.com/v1`。Anthropic 和 Gemini 预填官方 API 根地址，也支持兼容的自定义网关。工具会自动规范化根地址、`/v1`、`/models` 和完整补全地址，并在适当时在 OpenAI Chat Completions 与 Responses API 之间回退。
 
-## 普通用户
+## 下载与使用
 
 直接从 [Releases](https://github.com/jcta502/llm-api-tester/releases) 下载最新版本运行即可，无需安装，也不需要 Node.js / npm。每个发布版本提供两种 Windows 构建包：
 
@@ -59,27 +59,11 @@ OpenAI 兼容选项需要填写 Base URL，例如 `https://example.com/v1`。Ant
 
 两种包功能完全相同。启动后会打开自己的窗口，同时在 `http://127.0.0.1:4173` 启动本地 Web 服务器，桌面窗口和浏览器页面共享同一进程、同一配置库和同一套加密密钥。点击应用头部的"在浏览器中打开"按钮即可打开浏览器视图。
 
-## 开发者
+## 用浏览器视图需要安装什么
 
-以下命令仅在你需要修改代码或从源码运行时使用。普通用户不需要 Node.js 或 npm——发布包已打包所有依赖。
+如果只想用桌面软件，**什么都不用装**——下载安装包后双击运行即可。
 
-### 从源码运行桌面应用
-
-```powershell
-npm install
-npm run desktop
-```
-
-这会从源码启动完整的桌面应用（含配置库、加密密钥等全部功能）。
-
-### 纯浏览器开发模式
-
-```powershell
-npm install
-npm run dev
-```
-
-在浏览器打开 <http://127.0.0.1:4173>。这是**仅供开发**的模式，**无配置库**：可手动输入密钥做一次性检测，但不能保存配置。仅用于前端开发。
+如果你想用浏览器视图（即用浏览器打开界面），也只是双击安装包启动桌面应用，再点应用头部的"在浏览器中打开"按钮即可。用到的浏览器就是你电脑上已有的（Edge、Chrome 等），无需额外安装任何软件或运行环境（不需要 Node.js、npm 等）。浏览器视图依赖桌面应用在后台运行：若桌面应用未启动，浏览器页面无法加载、API 调用会失败——启动应用后刷新即可。
 
 注意事项：
 
@@ -87,31 +71,6 @@ npm run dev
 - 若 4173 端口被占用，应用会取下一个空闲端口并打印新地址，请相应更新书签。
 - 重复启动应用会聚焦已有窗口而非启动第二个服务器，保持书签端口稳定。
 - 关闭窗口会缩到系统托盘；如需完全退出请用托盘菜单。
-
-## 构建 Windows 安装包
-
-```powershell
-# 免安装 ZIP 构建包（启动快）
-npm run dist:fast
-
-# 单文件便携构建包
-npm run dist:win
-
-# 同时构建两者
-npm run dist:all
-```
-
-## 自动发布
-
-推送版本号标签（如 `v0.4.0`）会触发 `.github/workflows/release.yml`。GitHub Actions 会运行测试、构建两种 Windows 包（ZIP + 便携 EXE）、上传工作流产物，并将它们附到对应的 GitHub Release，附带自动生成的发布说明。
-
-## 开发
-
-- `npm test` —— 单元测试，外加一个 happy-dom UI 冒烟测试，用进程内模拟上游和 API 服务器驱动真实页面（配置列表、模型获取、搜索、深度批量检测）。
-- `npm run lint` —— 对 `src/`、`lib/`、`electron/` 及测试运行 ESLint。
-- `npm run check` —— 对每个模块做语法检查。
-
-渲染层按 ES 模块拆分在 `src/` 下：`api.js`（浏览器 API 客户端）、`state.js`（共享状态）、`dom.js`（渲染辅助）、`form.js`（单端点检测）、`profiles.js`（配置库）、`batch.js`（批量检测）、`settings.js`（主题、代理、定时、备份、更新徽标），由 `main.js` 串联。
 
 ## 安全
 
@@ -122,5 +81,3 @@ npm run dist:all
 - 拒绝带外来 `Host` 头的请求，阻断来自其他网页的 DNS 重绑定攻击。
 - API 路由需持久访问令牌（存于应用用户数据目录下）；页面资源无需令牌即可加载，保证书签可用。
 - 仅对外服务 `index.html`、`src/`、`lib/`、`public/`，`package.json`、`node_modules` 等项目文件不可达。
-
-浏览器开发模式（`npm run dev`）无配置库，且从不持久化 API 密钥。
