@@ -52,7 +52,7 @@ The OpenAI-compatible option requires a Base URL such as `https://example.com/v1
 
 ## Download and use
 
-Just download a build from [Releases](https://github.com/lunora502/llm-api-tester/releases), pick the latest version, and run it. No installation and no Node.js / npm needed. Two Windows builds are published with each release:
+Just download a build from [Releases](https://github.com/lunora502/touchstone/releases), pick the latest version, and run it. No installation and no Node.js / npm needed. Two Windows builds are published with each release:
 
 - **ZIP build** (`Touchstone-<version>-win.zip`) — extract once and run `Touchstone.exe`. Starts fast because the Electron runtime does not unpack itself on every launch. Recommended for normal use.
 - **Portable EXE** (`Touchstone-<version>-portable.exe`) — a single self-contained file. Convenient to send as one file, but starts more slowly because it unpacks the runtime on each launch.

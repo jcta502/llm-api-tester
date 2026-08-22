@@ -17,7 +17,7 @@ import { createHttpServer, listenWithRetry } from '../lib/http-server.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_PORT = 4173
-const UPDATE_REPO = 'lunora502/llm-api-tester'
+const UPDATE_REPO = 'lunora502/touchstone'
 let mainWindow
 let tray
 // forceQuit lets the "彻底关闭" tray action and OS shutdown bypass the

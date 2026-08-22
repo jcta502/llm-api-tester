@@ -52,7 +52,7 @@ OpenAI 兼容选项需要填写 Base URL，例如 `https://example.com/v1`。Ant
 
 ## 下载与使用
 
-直接从 [Releases](https://github.com/lunora502/llm-api-tester/releases) 下载最新版本运行即可，无需安装，也不需要 Node.js / npm。每个发布版本提供两种 Windows 构建包：
+直接从 [Releases](https://github.com/lunora502/touchstone/releases) 下载最新版本运行即可，无需安装，也不需要 Node.js / npm。每个发布版本提供两种 Windows 构建包：
 
 - **ZIP 版**（`Touchstone-<版本号>-win.zip`）——解压一次后运行 `Touchstone.exe` 即可。启动快，因为 Electron 运行时不需要每次启动都自解压。日常使用推荐此版本。
 - **便携 EXE 版**（`Touchstone-<版本号>-portable.exe`）——单个自包含文件，方便作为单文件发送，但每次启动较慢（需自解压运行时）。
