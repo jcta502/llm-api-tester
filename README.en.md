@@ -1,4 +1,4 @@
-# LLM API Tester
+# Touchstone
 
 A local desktop tool for validating LLM API credentials, listing models, checking real model calls, and comparing multiple endpoints side by side. Runs entirely on your own machine; API keys are encrypted by the operating system and never leave the app process.
 
@@ -52,10 +52,10 @@ The OpenAI-compatible option requires a Base URL such as `https://example.com/v1
 
 ## Download and use
 
-Just download a build from [Releases](https://github.com/jcta502/llm-api-tester/releases), pick the latest version, and run it. No installation and no Node.js / npm needed. Two Windows builds are published with each release:
+Just download a build from [Releases](https://github.com/lunora502/llm-api-tester/releases), pick the latest version, and run it. No installation and no Node.js / npm needed. Two Windows builds are published with each release:
 
-- **ZIP build** (`LLM API Tester-<version>-win.zip`) — extract once and run `LLM API Tester.exe`. Starts fast because the Electron runtime does not unpack itself on every launch. Recommended for normal use.
-- **Portable EXE** (`LLM-API-Tester-<version>-portable.exe`) — a single self-contained file. Convenient to send as one file, but starts more slowly because it unpacks the runtime on each launch.
+- **ZIP build** (`Touchstone-<version>-win.zip`) — extract once and run `Touchstone.exe`. Starts fast because the Electron runtime does not unpack itself on every launch. Recommended for normal use.
+- **Portable EXE** (`Touchstone-<version>-portable.exe`) — a single self-contained file. Convenient to send as one file, but starts more slowly because it unpacks the runtime on each launch.
 
 Both contain the full feature set. After launch it opens its own window and also starts a local web server on `http://127.0.0.1:4173`, so the desktop window and a browser page share one process, one profile store, and one set of encrypted keys. Use the **Open in browser** button in the app header to open the browser view.
 

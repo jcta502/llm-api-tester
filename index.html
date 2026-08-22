@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
-    <title>LLM API Tester</title>
+    <title>Touchstone · 试金石</title>
     <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
     <header class="app-header">
       <div class="brand">
-        <div class="brand-mark">AI</div>
-        <div><strong>LLM API Tester</strong><span>多端点管理与可用性检测</span></div>
+        <div class="brand-mark">石</div>
+        <div><strong>Touchstone</strong><span>试金石 · 多端点管理与可用性检测</span></div>
       </div>
       <div class="header-actions">
-        <span class="version-badge">v0.4.0</span><button id="updateBadge" class="update-badge hidden" type="button" title="查看新版本"></button>
+        <span class="version-badge">v0.5.0</span><button id="updateBadge" class="update-badge hidden" type="button" title="查看新版本"></button>
         <label class="theme-control"><span>主题</span><select id="themeSelect" aria-label="界面主题"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
         <div class="header-badge"><i></i> 本机运行</div>
         <button id="openInBrowser" class="ghost compact hidden" type="button">在浏览器中打开</button>
@@ -44,7 +44,7 @@
           <p id="baseUrlHelp" class="field-help">填写根地址或包含 /v1 的地址，工具会自动补全接口路径。</p>
           <label>API Key<div class="key-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><button id="toggleKey" class="icon-button" type="button" aria-label="显示或隐藏密钥">显示</button></div></label>
           <p id="keyHelp" class="field-help">新配置需要输入密钥；编辑配置时留空会保留原密钥。</p>
-          <label>自定义请求头（可选）<textarea id="customHeaders" rows="2" placeholder="每行一个，格式 Header-Name: value&#10;例如：X-Title: api-test"></textarea></label>
+          <label>自定义请求头（可选）<textarea id="customHeaders" rows="2" placeholder="每行一个，格式 Header-Name: value&#10;例如：X-Title: touchstone"></textarea></label>
           <p id="headersHelp" class="field-help">部分网关需要附加请求头。内容会与密钥一样加密保存，导出配置时不会包含。</p>
           <div class="controls"><label>超时时间<select id="timeout"><option value="10000">10 秒</option><option value="15000" selected>15 秒</option><option value="30000">30 秒</option><option value="60000">60 秒</option></select></label><button id="fetchModels" class="primary" type="button">获取模型列表 <span>→</span></button></div>
           <div class="form-actions"><button id="newProfile" class="ghost" type="button">清空 / 新建</button><button id="saveProfile" class="secondary" type="button">安全保存配置</button></div>

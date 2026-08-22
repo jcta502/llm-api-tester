@@ -1,9 +1,9 @@
 {
-  "name": "api-test",
+  "name": "touchstone",
   "description": "A local desktop tool for testing LLM API endpoints, keys, and models.",
   "author": "jcta502",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -25,8 +25,8 @@
     "happy-dom": "^20.11.2"
   },
   "build": {
-    "appId": "com.jcta502.llmapitester",
-    "productName": "LLM API Tester",
+    "appId": "com.jcta502.touchstone",
+    "productName": "Touchstone",
     "asar": true,
     "files": [
       "index.html",
@@ -43,7 +43,7 @@
       "signAndEditExecutable": false
     },
     "portable": {
-      "artifactName": "LLM-API-Tester-${version}-portable.exe"
+      "artifactName": "Touchstone-${version}-portable.exe"
     }
   },
   "dependencies": {

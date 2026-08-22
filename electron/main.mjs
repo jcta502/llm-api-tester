@@ -17,7 +17,7 @@ import { createHttpServer, listenWithRetry } from '../lib/http-server.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_PORT = 4173
-const UPDATE_REPO = 'jcta502/llm-api-tester'
+const UPDATE_REPO = 'lunora502/llm-api-tester'
 let mainWindow
 let tray
 // forceQuit lets the "彻底关闭" tray action and OS shutdown bypass the
@@ -61,7 +61,7 @@ function createWindow() {
     mainWindow.hide()
     if (!hasShownTrayHint) {
       hasShownTrayHint = true
-      try { new Notification({ title: 'LLM API Tester', body: '已最小化到托盘，右键托盘图标可彻底关闭或在浏览器中打开。' }).show() } catch { /* 系统不支持通知 */ }
+      try { new Notification({ title: 'Touchstone 试金石', body: '已最小化到托盘，右键托盘图标可彻底关闭或在浏览器中打开。' }).show() } catch { /* 系统不支持通知 */ }
     }
   })
 }
@@ -82,7 +82,7 @@ function openInBrowser() {
 function createTray() {
   const iconPath = join(root, 'electron', 'app.ico')
   tray = new Tray(iconPath)
-  tray.setToolTip('LLM API Tester')
+  tray.setToolTip('Touchstone · 试金石')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '打开网页', click: () => openInBrowser() },
     { type: 'separator' },
@@ -213,7 +213,7 @@ async function startHttpServer() {
     onSettingsChanged: () => scheduler?.restart(),
   })
   httpPort = await listenWithRetry(httpServer, DEFAULT_PORT)
-  console.log(`LLM API Tester 本地网页服务: http://127.0.0.1:${httpPort}/?token=${localToken}`)
+  console.log(`Touchstone 本地网页服务: http://127.0.0.1:${httpPort}/?token=${localToken}`)
   if (httpPort !== DEFAULT_PORT) console.warn(`端口 ${DEFAULT_PORT} 被占用，已改用 ${httpPort}；收藏栏地址需要同步更新。`)
 }
 
@@ -228,7 +228,7 @@ async function scheduledRun() {
     const before = (previous[profile.id] || []).at(-1)
     if (!before || Boolean(before.ok) === Boolean(result.ok)) continue
     const state = result.ok ? `已恢复可用（${result.models?.length || 0} 个模型）` : `检测失败：${result.diagnosis?.message || result.error || '未知原因'}`
-    try { new Notification({ title: `LLM API Tester · ${profile.name}`, body: state }).show() } catch { /* 系统不支持通知 */ }
+    try { new Notification({ title: `Touchstone · ${profile.name}`, body: state }).show() } catch { /* 系统不支持通知 */ }
   }
 }
 

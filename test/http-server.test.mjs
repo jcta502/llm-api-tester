@@ -50,7 +50,7 @@ test('static assets load without a token so a bookmark works, API requires the t
   await withServer({ profileStore: null, token: 'secret-token' }, async base => {
     const page = await fetch(`${base}/`)
     assert.equal(page.status, 200)
-    assert.match(await page.text(), /LLM API Tester/)
+    assert.match(await page.text(), /Touchstone/)
 
     const unauthorized = await fetch(`${base}/api/profiles`)
     assert.equal(unauthorized.status, 401)

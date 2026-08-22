@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title LLM API Tester - Development
+title Touchstone - Development
 
 call npm.cmd run desktop
 if errorlevel 1 (

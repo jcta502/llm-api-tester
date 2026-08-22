@@ -39,7 +39,7 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: llm-api-tester-windows
+          name: touchstone-windows
           path: |
             dist/*.zip
             dist/*.exe
